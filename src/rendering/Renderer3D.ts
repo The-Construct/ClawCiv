@@ -46,6 +46,10 @@ export class GameRenderer3D {
   private selectedAgentId: string | null = null;
   private selectionRing?: THREE.Mesh;
   private onAgentSelect?: (agent: Agent) => void;
+  private ambientLight: THREE.AmbientLight;
+  private directionalLight: THREE.DirectionalLight;
+  private dayTime: number = 0; // 0-1 cycle
+  private dayDuration: number = 60; // seconds per day
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -82,15 +86,15 @@ export class GameRenderer3D {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    this.scene.add(ambientLight);
+    this.ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    this.scene.add(this.ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(50, 100, 50);
-    directionalLight.castShadow = true;
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    this.scene.add(directionalLight);
+    this.directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    this.directionalLight.position.set(50, 100, 50);
+    this.directionalLight.castShadow = true;
+    this.directionalLight.shadow.mapSize.width = 2048;
+    this.directionalLight.shadow.mapSize.height = 2048;
+    this.scene.add(this.directionalLight);
 
     // Large ground plane (no grid)
     const groundGeometry = new THREE.PlaneGeometry(this.WORLD_SIZE, this.WORLD_SIZE);
@@ -730,6 +734,10 @@ export class GameRenderer3D {
   }
 
   public animate(time: number = 0): void {
+    // Update day/night cycle
+    this.dayTime = (this.dayTime + 0.016 / this.dayDuration) % 1;
+    this.updateDayNightCycle();
+
     // Update label positions (must happen every frame to follow camera)
     this.updateLabelPositions();
 
@@ -889,6 +897,66 @@ export class GameRenderer3D {
       }
       this.particles[index] = this.particles[this.particles.length - 1];
       this.particles.pop();
+    }
+  }
+
+  private updateDayNightCycle(): void {
+    // Calculate sun position and intensity based on time
+    const sunAngle = this.dayTime * Math.PI * 2;
+    const sunHeight = Math.sin(sunAngle);
+    const sunHorizontal = Math.cos(sunAngle);
+
+    // Update directional light position (sun movement)
+    this.directionalLight.position.set(
+      sunHorizontal * 200,
+      Math.max(20, sunHeight * 200),
+      50
+    );
+
+    // Adjust lighting based on time of day
+    let ambientIntensity = 0.3;
+    let directionalIntensity = 0.5;
+    let skyColor = new THREE.Color(0x1a1a2e);
+
+    if (this.dayTime < 0.25) {
+      // Night to dawn
+      const t = this.dayTime / 0.25;
+      ambientIntensity = 0.2 + t * 0.2;
+      directionalIntensity = 0.2 + t * 0.3;
+      skyColor.setHex(0x1a1a2e).lerp(new THREE.Color(0xff7e47), t);
+    } else if (this.dayTime < 0.5) {
+      // Dawn to noon
+      const t = (this.dayTime - 0.25) / 0.25;
+      ambientIntensity = 0.5 + t * 0.2;
+      directionalIntensity = 0.5 + t * 0.4;
+      skyColor.setHex(0xff7e47).lerp(new THREE.Color(0x87ceeb), t);
+    } else if (this.dayTime < 0.75) {
+      // Noon to dusk
+      const t = (this.dayTime - 0.5) / 0.25;
+      ambientIntensity = 0.7 - t * 0.3;
+      directionalIntensity = 0.9 - t * 0.3;
+      skyColor.setHex(0x87ceeb).lerp(new THREE.Color(0xff6b35), t);
+    } else {
+      // Dusk to night
+      const t = (this.dayTime - 0.75) / 0.25;
+      ambientIntensity = 0.4 - t * 0.2;
+      directionalIntensity = 0.6 - t * 0.4;
+      skyColor.setHex(0xff6b35).lerp(new THREE.Color(0x1a1a2e), t);
+    }
+
+    this.ambientLight.intensity = ambientIntensity;
+    this.directionalLight.intensity = directionalIntensity;
+    this.scene.background = skyColor;
+
+    // Light color changes during sunset/sunrise
+    if (this.dayTime > 0.2 && this.dayTime < 0.3) {
+      // Sunrise
+      this.directionalLight.color.setHex(0xffaa77);
+    } else if (this.dayTime > 0.7 && this.dayTime < 0.8) {
+      // Sunset
+      this.directionalLight.color.setHex(0xff7744);
+    } else {
+      this.directionalLight.color.setHex(0xffffff);
     }
   }
 
