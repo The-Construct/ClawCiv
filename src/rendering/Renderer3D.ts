@@ -19,7 +19,7 @@ export class GameRenderer3D {
   private resourceNodes: Map<string, THREE.Mesh> = new Map();
   private readonly GRID_SIZE = 10;
   private readonly CELL_SIZE = 15;
-  private readonly WORLD_SIZE = 200;
+  private readonly WORLD_SIZE = 1000;
   private canvas: HTMLCanvasElement;
   private bubbleContainer: HTMLDivElement;
   private cameraTarget: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
@@ -35,18 +35,18 @@ export class GameRenderer3D {
 
     // Orthographic camera for isometric view
     const aspect = canvas.clientWidth / canvas.clientHeight;
-    const frustumSize = 200;
+    const frustumSize = 400;
     this.camera = new THREE.OrthographicCamera(
       frustumSize * aspect / -2,
       frustumSize * aspect / 2,
       frustumSize / 2,
       frustumSize / -2,
       1,
-      2000
+      3000
     );
 
     // Isometric camera position
-    this.camera.position.set(150, 150, 150);
+    this.camera.position.set(300, 300, 300);
     this.camera.lookAt(0, 0, 0);
 
     // Setup mouse controls for panning
@@ -120,9 +120,9 @@ export class GameRenderer3D {
     // Wheel zoom
     this.canvas.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const zoomSpeed = 0.5;
+      const zoomSpeed = 0.8;
       const frustumSize = this.camera.right - this.camera.left;
-      const newFrustumSize = Math.max(50, Math.min(400, frustumSize + e.deltaY * zoomSpeed));
+      const newFrustumSize = Math.max(100, Math.min(800, frustumSize + e.deltaY * zoomSpeed));
 
       const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
       this.camera.left = -newFrustumSize * aspect / 2;
@@ -136,9 +136,9 @@ export class GameRenderer3D {
   private updateCameraPosition(): void {
     // Isometric offset from target
     this.camera.position.set(
-      this.cameraTarget.x + 150,
-      this.cameraTarget.y + 150,
-      this.cameraTarget.z + 150
+      this.cameraTarget.x + 300,
+      this.cameraTarget.y + 300,
+      this.cameraTarget.z + 300
     );
     this.camera.lookAt(this.cameraTarget);
   }
@@ -228,7 +228,7 @@ export class GameRenderer3D {
 
     // Spawn resource nodes based on game state
     // Create resources randomly across the map
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 100; i++) {
       const x = (Math.random() - 0.5) * this.WORLD_SIZE * 0.8;
       const z = (Math.random() - 0.5) * this.WORLD_SIZE * 0.8;
       const types = ['food', 'energy', 'materials', 'knowledge', 'social'];
@@ -394,7 +394,7 @@ export class GameRenderer3D {
       mesh.currentPosition.lerp(mesh.targetPosition, 0.02);
 
       // Collision avoidance - push away from nearby agents
-      const minDistance = 8;
+      const minDistance = 15;
       for (let j = 0; j < agentPositions.length; j++) {
         if (i === j) continue;
 
@@ -423,7 +423,7 @@ export class GameRenderer3D {
 
   public resize(width: number, height: number): void {
     const aspect = width / height;
-    const frustumSize = 150;
+    const frustumSize = 400;
 
     this.camera.left = frustumSize * aspect / -2;
     this.camera.right = frustumSize * aspect / 2;
