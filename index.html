@@ -230,6 +230,84 @@
             from { opacity: 1; }
             to { opacity: 0; }
         }
+        #leaderboard {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #ffe66d;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        #leaderboard h2 {
+            color: #ffe66d;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        .leaderboard-tabs {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+        .leaderboard-tab {
+            background: #1a1a2e;
+            border: 1px solid #333;
+            color: #888;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .leaderboard-tab:hover {
+            border-color: #ffe66d;
+            color: #ffe66d;
+        }
+        .leaderboard-tab.active {
+            background: #ffe66d;
+            color: #1a1a2e;
+            border-color: #ffe66d;
+        }
+        .leaderboard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .leaderboard-entry {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            border: 1px solid #333;
+        }
+        .leaderboard-rank {
+            font-size: 16px;
+            font-weight: bold;
+            width: 30px;
+            text-align: center;
+        }
+        .leaderboard-rank.gold { color: #ffd700; }
+        .leaderboard-rank.silver { color: #c0c0c0; }
+        .leaderboard-rank.bronze { color: #cd7f32; }
+        .leaderboard-agent {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .leaderboard-name {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .leaderboard-details {
+            font-size: 11px;
+            color: #888;
+        }
+        .leaderboard-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+        }
     </style>
 </head>
 <body>
@@ -328,6 +406,18 @@
                 <div id="tradeHistory">
                     <div class="trade-entry" style="color: #666;">No trades yet...</div>
                 </div>
+            </div>
+        </div>
+
+        <div id="leaderboard">
+            <h2>🏆 Agent Leaderboard</h2>
+            <div class="leaderboard-tabs">
+                <div class="leaderboard-tab active" data-tab="level">By Level</div>
+                <div class="leaderboard-tab" data-tab="tokens">By $CLAW</div>
+                <div class="leaderboard-tab" data-tab="resources">By Resources</div>
+            </div>
+            <div class="leaderboard-list" id="leaderboardList">
+                <div style="text-align: center; color: #666; padding: 20px;">Loading...</div>
             </div>
         </div>
     </div>
@@ -517,6 +607,86 @@
             document.getElementById('gammaTreasury').textContent = stats.treasuries['Gamma']?.toLocaleString() || '0';
         }
 
+        // Leaderboard system
+        let currentLeaderboardTab = 'level';
+        let lastLeaderboardUpdate = 0;
+
+        function updateLeaderboard() {
+            const now = Date.now();
+            if (now - lastLeaderboardUpdate < 3000) return; // Update every 3 seconds
+            lastLeaderboardUpdate = now;
+
+            const agents = engine.getAliveAgents();
+            let sortedAgents;
+
+            switch (currentLeaderboardTab) {
+                case 'level':
+                    sortedAgents = [...agents].sort((a, b) => (b.level || 1) - (a.level || 1));
+                    break;
+                case 'tokens':
+                    sortedAgents = [...agents].sort((a, b) =>
+                        engine.getAgentBalance(b.id) - engine.getAgentBalance(a.id)
+                    );
+                    break;
+                case 'resources':
+                    sortedAgents = [...agents].sort((a, b) => {
+                        const totalA = a.resources.food + a.resources.energy + a.resources.materials + a.resources.knowledge;
+                        const totalB = b.resources.food + b.resources.energy + b.resources.materials + b.resources.knowledge;
+                        return totalB - totalA;
+                    });
+                    break;
+            }
+
+            const top10 = sortedAgents.slice(0, 10);
+            const leaderboardList = document.getElementById('leaderboardList');
+
+            leaderboardList.innerHTML = '';
+
+            top10.forEach((agent, index) => {
+                const rank = index + 1;
+                const rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+
+                let value, details;
+                switch (currentLeaderboardTab) {
+                    case 'level':
+                        value = `Level ${agent.level || 1}`;
+                        details = `${agent.tribe} • ${agent.specialization || 'none'} • XP: ${agent.experience || 0}`;
+                        break;
+                    case 'tokens':
+                        value = `${engine.getAgentBalance(agent.id)} $CLAW`;
+                        details = `${agent.tribe} • Level ${agent.level || 1}`;
+                        break;
+                    case 'resources':
+                        const total = agent.resources.food + agent.resources.energy + agent.resources.materials + agent.resources.knowledge;
+                        value = total.toLocaleString();
+                        details = `${agent.tribe} • F:${agent.resources.food} E:${agent.resources.energy} M:${agent.resources.materials} K:${agent.resources.knowledge}`;
+                        break;
+                }
+
+                const entry = document.createElement('div');
+                entry.className = 'leaderboard-entry';
+                entry.innerHTML = `
+                    <div class="leaderboard-rank ${rankClass}">${rank}</div>
+                    <div class="leaderboard-agent">
+                        <div class="leaderboard-name tribe-${agent.tribe}">${agent.name}</div>
+                        <div class="leaderboard-details">${details}</div>
+                    </div>
+                    <div class="leaderboard-value">${value}</div>
+                `;
+                leaderboardList.appendChild(entry);
+            });
+        }
+
+        // Tab switching
+        document.querySelectorAll('.leaderboard-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.leaderboard-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentLeaderboardTab = tab.dataset.tab;
+                updateLeaderboard();
+            });
+        });
+
         function updateChatLog() {
             const messages = engine.getMessages(30);
             const logsContainer = document.getElementById('logs');
@@ -643,6 +813,9 @@
 
             // Check for important events
             checkImportantEvents();
+
+            // Update leaderboard
+            updateLeaderboard();
         }
 
         // Game loop - one tick every second
