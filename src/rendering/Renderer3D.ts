@@ -396,8 +396,6 @@ export class GameRenderer3D {
   }
 
   private updateNameLabels(state: GameState): void {
-    const containerRect = this.canvas.getBoundingClientRect();
-
     for (const [agentId, mesh] of this.agentMeshes) {
       const agent = state.agents.find(a => a.id === agentId);
       if (!agent || !agent.alive) continue;
@@ -439,10 +437,21 @@ export class GameRenderer3D {
         mesh.actionElement = actionEl;
       }
 
+      // Update name text
+      mesh.nameElement.textContent = agent.name;
+
       // Determine action icon based on agent state
       const actionIcon = this.getActionIcon(agent);
       mesh.actionElement.textContent = actionIcon;
       mesh.actionElement.style.display = actionIcon ? 'block' : 'none';
+    }
+  }
+
+  private updateLabelPositions(): void {
+    const containerRect = this.canvas.getBoundingClientRect();
+
+    for (const mesh of this.agentMeshes.values()) {
+      if (!mesh.nameElement || !mesh.actionElement) continue;
 
       // Project 3D position to 2D screen space
       const namePos = mesh.position.clone();
@@ -463,13 +472,15 @@ export class GameRenderer3D {
       mesh.nameElement.style.left = `${x}px`;
       mesh.nameElement.style.top = `${y}px`;
       mesh.nameElement.style.transform = 'translate(-50%, 0)';
-      mesh.nameElement.textContent = agent.name;
 
       // Position action icon above name
-      const actionY = y - 18;
-      mesh.actionElement.style.left = `${x}px`;
-      mesh.actionElement.style.top = `${actionY}px`;
-      mesh.actionElement.style.transform = 'translate(-50%, 0)';
+      if (mesh.actionElement.textContent) {
+        const actionY = y - 18;
+        mesh.actionElement.style.left = `${x}px`;
+        mesh.actionElement.style.top = `${actionY}px`;
+        mesh.actionElement.style.transform = 'translate(-50%, 0)';
+        mesh.actionElement.style.display = 'block';
+      }
     }
   }
 
@@ -503,6 +514,9 @@ export class GameRenderer3D {
   }
 
   public animate(time: number = 0): void {
+    // Update label positions (must happen every frame to follow camera)
+    this.updateLabelPositions();
+
     // Animate resources (floating effect)
     for (const node of this.resourceNodes.values()) {
       const nodeData = node as any;
