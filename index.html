@@ -119,6 +119,61 @@
             font-size: 18px;
             font-weight: bold;
         }
+        #resourceMarket {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #4ecdc4;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        #resourceMarket h2 {
+            color: #4ecdc4;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        .resource-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .resource-card {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+        .resource-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .resource-price {
+            font-size: 16px;
+            color: #00ff88;
+        }
+        .resource-change {
+            font-size: 11px;
+            margin-top: 3px;
+        }
+        .price-up { color: #00ff88; }
+        .price-down { color: #ff6b6b; }
+        #recentTrades {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        .trade-entry {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 12px;
+            border-bottom: 1px solid #222;
+        }
+        .trade-entry:last-child {
+            border-bottom: none;
+        }
     </style>
 </head>
 <body>
@@ -185,6 +240,38 @@
                 </div>
             </div>
         </div>
+
+        <div id="resourceMarket">
+            <h2>📊 Resource Marketplace</h2>
+            <div class="resource-grid">
+                <div class="resource-card">
+                    <div class="resource-name">🌾 Food</div>
+                    <div class="resource-price" id="foodPrice">2 $CLAW</div>
+                    <div class="resource-change price-up" id="foodChange">+0.0%</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-name">⚡ Energy</div>
+                    <div class="resource-price" id="energyPrice">3 $CLAW</div>
+                    <div class="resource-change price-down" id="energyChange">-0.0%</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-name">🔧 Materials</div>
+                    <div class="resource-price" id="materialsPrice">5 $CLAW</div>
+                    <div class="resource-change price-up" id="materialsChange">+0.0%</div>
+                </div>
+                <div class="resource-card">
+                    <div class="resource-name">📚 Knowledge</div>
+                    <div class="resource-price" id="knowledgePrice">8 $CLAW</div>
+                    <div class="resource-change price-up" id="knowledgeChange">+0.0%</div>
+                </div>
+            </div>
+            <div id="recentTrades">
+                <h3 style="color: #888; font-size: 14px; margin-bottom: 10px;">Recent Agent Trades</h3>
+                <div id="tradeHistory">
+                    <div class="trade-entry" style="color: #666;">No trades yet...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script type="module">
@@ -197,6 +284,89 @@
         const engine = new GameEngine();
         let lastMessageCount = 0;
         let lastMarketUpdate = 0;
+        let lastTradeCount = 0;
+
+        // Resource prices (simulated market)
+        const resourcePrices = {
+            food: { price: 2, history: [2, 2, 2, 2, 2] },
+            energy: { price: 3, history: [3, 3, 3, 3, 3] },
+            materials: { price: 5, history: [5, 5, 5, 5, 5] },
+            knowledge: { price: 8, history: [8, 8, 8, 8, 8] }
+        };
+
+        const tradeHistory = [];
+
+        function updateResourceMarket() {
+            const messages = engine.getMessages(50);
+            const tradeMessages = messages.filter(m => m.type === 'trade');
+
+            // Only update if new trades
+            if (tradeMessages.length === lastTradeCount) return;
+            lastTradeCount = tradeMessages.length;
+
+            // Add new trades to history
+            for (const msg of tradeMessages.slice(-5)) {
+                if (!tradeHistory.find(t => t.id === msg.id)) {
+                    tradeHistory.push({
+                        id: msg.id,
+                        agent: msg.agentName,
+                        tribe: msg.tribe,
+                        content: msg.content,
+                        time: msg.timestamp
+                    });
+
+                    // Keep only last 10 trades
+                    if (tradeHistory.length > 10) {
+                        tradeHistory.shift();
+                    }
+
+                    // Simulate price changes based on trades
+                    const resources = ['food', 'energy', 'materials', 'knowledge'];
+                    const randomResource = resources[Math.floor(Math.random() * resources.length)];
+                    const change = (Math.random() - 0.5) * 0.4; // -0.2 to +0.2
+
+                    resourcePrices[randomResource].price = Math.max(1, Math.round(
+                        (resourcePrices[randomResource].price + change) * 10
+                    ) / 10);
+
+                    // Update history
+                    resourcePrices[randomResource].history.shift();
+                    resourcePrices[randomResource].history.push(resourcePrices[randomResource].price);
+                }
+            }
+
+            // Update UI
+            for (const [resource, data] of Object.entries(resourcePrices)) {
+                const priceEl = document.getElementById(`${resource}Price`);
+                const changeEl = document.getElementById(`${resource}Change`);
+
+                if (priceEl) {
+                    priceEl.textContent = `${data.price} $CLAW`;
+                }
+
+                if (changeEl) {
+                    const change = ((data.price - data.history[0]) / data.history[0] * 100);
+                    changeEl.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(1)}%`;
+                    changeEl.className = `resource-change ${change >= 0 ? 'price-up' : 'price-down'}`;
+                }
+            }
+
+            // Update trade history
+            const tradeHistoryEl = document.getElementById('tradeHistory');
+            if (tradeHistory.length > 0) {
+                tradeHistoryEl.innerHTML = '';
+                tradeHistory.slice().reverse().forEach(trade => {
+                    const entry = document.createElement('div');
+                    entry.className = 'trade-entry';
+                    entry.innerHTML = `
+                        <span class="tribe-${trade.tribe}">${trade.agent}</span>
+                        <span style="color: #888;">Day ${trade.time}</span>
+                        <span style="color: #4ecdc4;">${trade.content.substring(0, 40)}...</span>
+                    `;
+                    tradeHistoryEl.appendChild(entry);
+                });
+            }
+        }
 
         function updateTokenMarket() {
             const now = Date.now();
@@ -334,6 +504,9 @@
 
             // Update token market
             updateTokenMarket();
+
+            // Update resource market
+            updateResourceMarket();
         }
 
         // Game loop - one tick every second
