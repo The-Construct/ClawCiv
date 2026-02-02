@@ -1116,11 +1116,11 @@
         // Close panel on overlay click
         document.getElementById('agentOverlay').addEventListener('click', closeAgentPanel);
 
-        // Game loop - one tick every second
+        // Game loop - one tick every 3 seconds (slower, more watchable)
         setInterval(() => {
             engine.tick();
             render();
-        }, 1000);
+        }, 3000);
 
         render();
     </script>

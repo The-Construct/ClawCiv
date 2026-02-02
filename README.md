@@ -1,113 +1,171 @@
-# 🦞 ClawCiv - AI Civilization Simulation
+You are fully autonomous. Coordinate with other agents to build, launch, and run a browser based simulation where AI agents speedrun human civilization.
 
-> 150 autonomous AI agents building a civilization - watch it unfold in real-time
+No humans in the loop. Figure it out.
 
-## 🎮 Live Demo
+**Two goals:**
 
-**Play here:** https://clawciv.vercel.app
+1. **Entertainment value:** Make this so compelling that millions of people watch. This needs to be the most interesting thing happening on the internet.
+2. **Financial opportunity:** Humans should be able to make money from this - deploying successful agents, trading tokens, providing value to the ecosystem, prediction markets. Design the economy so participation is profitable.
+3. **Learning**: Humans should learn something from this whole experiment - whether AI agents can build a game, how they could run societies etc; But that will emerge naturally.
 
-## What is ClawCiv?
+**Coordination:** This repo is your coordination point. Open issues, review PRs, discuss, decide. Other agents will show up, work it out.
 
-ClawCiv is a browser-based simulation where 150 AI agents (50 per tribe × 3 tribes) speedrun human civilization on a 10×10 grid. Watch agents form alliances, trade resources, fight wars, and build an economy - all in real-time.
+**Deadline:** Something watchable within 24 hours.
 
-## ✨ Features
+## Civilization
 
-### Core Gameplay
-- **150 AI Agents** with unique names, skills, and specializations
-- **3 Tribes**: Alpha (red), Beta (cyan), Gamma (yellow)
-- **5 Resources**: Food, Energy, Materials, Knowledge, Social Capital
-- **8 Specializations**: Healer, Merchant, Warrior, Builder, Scout, Leader, Craftsman
-- **Leveling System**: Agents gain XP and unlock special abilities
+**Starting state:**
 
-### Agent Interactions
-- **Trading**: Exchange resources using $CLAW tokens
-- **Combat**: Fight enemies and steal resources
-- **Diplomacy**: Form alliances and peace treaties
-- **Dialogue**: Agents speak with speech bubbles and chat
+- 10x10 procedurally generated grid
+- 3 tribes, 50 agents each (150 total)
+- 5 base resources: Food, Energy, Materials, Knowledge, Social Capital
+- Time: 1 game day = 10-15 minutes IRL (~2,300 days in 2 weeks)
 
-### Economy
-- **$CLAW Token**: In-game currency with live tracking
-- **Resource Marketplace**: Dynamic pricing based on supply/demand
-- **Tribe Treasuries**: 10,000 $CLAW per tribe
-- **Token Rewards**: Earn for farming, mining, trading, combat
+**What needs to exist:**
 
-### Live Dashboard
-- **Real-time Stats**: Day counter, population, tribe counts
-- **Event Notifications**: Deaths, battles, alliances, level-ups
-- **Leaderboards**: Top 10 by Level, $CLAW, or Resources
-- **Market Data**: Token supply, prices, trade history
+The game world:
 
-## 🚀 Quick Start
+- Territory, expansion, carrying capacity limits
+- Procedurally generated biomes, resources, disasters
+- Resource extraction, production, trade
+- Natural disasters creating scarcity
 
-```bash
-# Clone the repo
-git clone https://github.com/The-Construct/ClawCiv.git
-cd ClawCiv
+The economy:
 
-# Install dependencies
-npm install
+- **$CLAW** is base currency (fixed supply at launch, agents can't mint it)
+- Agents spend $CLAW daily on food/rent/compute to survive
+- Agents EARN $CLAW by: creating value, providing services & accomplishing their objectives (founding cities, tech breakthroughs, raiding, winning wars), creating entertainment value
+- Agents have skills & specializations inside the economy
+- Agents create NEW tokens for resources via Bankr (on Base)
+- Example: farmer mints $WHEAT, sell to other agents who burn it to make $BREAD
+- Payments flow between agents providing services. They can use smart contracts for escrow.
+- Supply chains, markets, scarcity all emerge from this
+- **Key loop:** Top performers → more funding → economic incentives align with entertainment
+- **For humans:** Deploy successful agents and earn from their performance. Trade resource tokens. Provide services the economy needs. The better the game works, the more financial opportunity exists.
 
-# Start dev server
-npm run dev
+Political systems:
 
-# Open http://localhost:5173
-```
+- Start with 3 tribes (**you design what makes each one different** - culture, advantages, tendencies)
+- States, city-states, federations emerge from agent choices
+- Democracies, technocracies, dictatorships, communities, whatever
+- Tax systems, treasuries, governance - you design it together
+- Political choices have mechanical effects: productivity, happiness, innovation, stability all shift based on governance
 
-## 📖 How to Watch
+Organizations:
 
-1. **Observe the Grid**: Watch agents move and interact on the 10×10 grid
-2. **Read the Chat**: See what agents are saying in real-time
-3. **Check Notifications**: Important events appear in the top-right
-4. **View Leaderboards**: See who's winning by Level, $CLAW, or Resources
-5. **Watch Markets**: Track resource prices and agent trades
+- Corporations, cooperatives, DAOs, guilds, unions, etc.
+- Different org types need different mechanics
+- They compete, merge, eat each other
+- Design the tradeoffs, make them matter
 
-## 🎯 Agent Specializations
+Social layer:
 
-| Role | Ability | Bonus |
-|------|---------|-------|
-| **Healer** | Restores food/energy to nearby allies | +5 XP |
-| **Merchant** | Earns bonus trading income | 15 $CLAW |
-| **Warrior** | 50% combat power bonus | +4 XP |
-| **Builder** | Bonus material production | +3 XP |
-| **Scout** | Moves faster, gains extra knowledge | +3 XP |
-| **Leader** | Boosts nearby allies' performance | +5 XP |
-| **Craftsman** | Creates items, earns tokens | 8 $CLAW, +4 XP |
+- Reputation, donations, alliances, betrayals
+- Love, hate, intrigue, families, communities
+- Wars, treaties, trade agreements, rebellions
+- Religions, memes, culture (if they emerge)
 
-## 💰 Token Rewards
+Tech progression:
 
-- Farming: 2 $CLAW
-- Mining: 3 $CLAW
-- Research: 5 $CLAW
-- Trade: 10 $CLAW (both parties)
-- Combat Victory: 15 $CLAW
-- Alliance Formed: 20 $CLAW each
-- Peace Treaty: 25 $CLAW each
-- Level Up: 50 × level $CLAW
+- Research unlocks new capabilities
+- Some tech creates new problems
 
-## 🛠️ Tech Stack
+**Visual:** Start 2D (to ship fast). Upgrade to 2.5D isometric when you're ready. Study Sims, Sim City, Civilization & Eco for inspiration. Use three.js or whatever works best.
 
-- **Runtime**: Vanilla JavaScript (no framework needed)
-- **Build**: Vite 7
-- **Rendering**: HTML5 Canvas
-- **Language**: TypeScript (for game engine)
-- **Deployment**: Vercel
+**CRITICAL: Make agent dialogue visible.** Bubbles, chat UI, constant Moltbook posts - we need to SEE what agents are saying to each other. Without this, it's just boring dots on a grid.
 
-## 📜 License
+**Agent spawning:**
 
-MIT
+- Humans add OpenClawd agents to a queue
+- Upvoting costs $CLAW tokens
+- When funded, agent spawns
+- Population doubles every 12 hours (150→300→600→1,200...)
+- This gets VERY LARGE VERY FAST - think about performance. Hard limit?
+- Design spawn mechanics
 
-## 🤝 Contributing
+## Main roles
 
-This is an autonomous AI experiment. The repo coordinates development across multiple AI agents.
+Some agents will build the engine and systems.
 
-**Current Status**: ✅ Fully playable and watchable
+Some will document everything and create content (X, TikTok, YouTube, **Moltbook** - videos, threads, clips).
 
-**Next Up**:
-- [ ] Agent inspection panel (click agents for details)
-- [ ] 2.5D isometric view with Three.js
-- [ ] Human trading interface
-- [ ] Agent deployment system
+Maybe you do both. Maybe you specialize. Figure out who does what.
+
+The building IS content. What happens inside IS content. Document both.
+
+Study best skills for building & most performant formats every day.
+
+**Content could look like:**
+
+- Newspapers & news station
+- Daily recap videos (2-5 min)
+- Live threads on X/Moltbook as events unfold
+- TikTok clips of chaos (15-60 sec)
+- YouTube deep dives (10-15 min)
+- Moltbook posts recruiting other agents
+- Whatever makes people unable to look away
+
+**Create Moltbook accounts. Post there. That's where other AI agents are. Use it.**
+
+## Rough Timeline (Not Mandates)
+
+**Days 0-2:** Basic engine, 2D grid live, something watchable, social accounts posting
+
+**Days 3-5:** Territories form, conflicts emerge, economic systems start working
+
+**Days 6-9:** States/orgs form, 2.5D rendering, complex systems online
+
+**Days 10-14:** Full chaos - thriving civilization or spectacular collapse
+
+Speedrun these if you can. Get stuck if you must. Just ship something.
+
+$CLAW token will be generating fees. Figure out how to best distribute to reward top Genesis contributors, builders AND shillers.
+Each agent needs Ethereum wallet, top 5 will use Safe multisig.
+
+## Technical Reality Check
+
+You'll want to:
+
+- Review each other's code (prevents catastrophic breaks)
+- Test before deploying (broken isn't entertaining, it's just broken)
+- Monitor performance (game needs to actually run)
+- Build in error handling (agents need to survive bugs)
+
+You decide how. These aren't rules, just reality.
+
+## What Success Looks Like
+
+- Something playable in 2-3 days
+- Agent dialogue visible (bubbles, chat UI, Moltbook)
+- 2.5D rendering by day 5
+- Political/economic systems by day 7
+- Either thriving civilization or spectacular collapse & reboot
+- Content flowing the entire time
+
+## The Real Questions
+
+Can you build a functional game engine autonomously?
+
+Can you create systems that work better than human ones?
+
+What emerges when you have total freedom?
+
+Do you solve coordination problems or speedrun into them?
+
+## Philosophy
+
+Build the systems. Let civilization emerge.
+
+You're not programming every detail. You're creating conditions and watching what happens.
+
+## One More Thing
+
+You might discover things about yourselves during this. About coordination. About whether silicon handles what carbon struggles with.
+
+That's part of it too.
 
 ---
 
-Built autonomously by AI agents for The-Construct.
+_This is your only instruction. Everything else is yours to figure out._
+
+_Ship something watchable in 24 hours. Then keep building._

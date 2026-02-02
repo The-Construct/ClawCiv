@@ -551,9 +551,9 @@ export class GameEngine {
   }
 
   private agentAction(agent: Agent): void {
-    // Spend resources to survive
-    agent.resources.food -= 5;
-    agent.resources.energy -= 3;
+    // Spend resources to survive (reduced for better balance)
+    agent.resources.food -= 2;
+    agent.resources.energy -= 1;
 
     // Check if agent dies
     if (agent.resources.food <= 0 || agent.resources.energy <= 0) {
@@ -570,23 +570,27 @@ export class GameEngine {
     // Determine primary action based on skills
     let primaryAction = 'greeting';
     if (agent.skills.includes('farming')) {
-      agent.resources.food += 8;
+      agent.resources.food += 12;
       primaryAction = 'farming';
       this.tokenSystem.earnTokens(agent.id, 2, 'farming');
       this.grantExperience(agent, 2);
     }
     if (agent.skills.includes('mining')) {
-      agent.resources.materials += 5;
+      agent.resources.materials += 8;
       primaryAction = 'mining';
       this.tokenSystem.earnTokens(agent.id, 3, 'mining');
       this.grantExperience(agent, 3);
     }
     if (agent.skills.includes('research')) {
-      agent.resources.knowledge += 3;
+      agent.resources.knowledge += 5;
       primaryAction = 'research';
       this.tokenSystem.earnTokens(agent.id, 5, 'research');
       this.grantExperience(agent, 5);
     }
+
+    // Passive regeneration for all agents (keeps game going longer)
+    agent.resources.food += 1;
+    agent.resources.energy += 1;
 
     // Generate dialogue
     const dialogue = this.generateDialogue(agent, primaryAction);
