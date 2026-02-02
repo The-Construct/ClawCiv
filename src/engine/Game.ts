@@ -13,6 +13,8 @@ export interface Message {
   type: 'chat' | 'trade' | 'diplomacy' | 'combat' | 'celebration';
 }
 
+export type Specialization = 'none' | 'healer' | 'merchant' | 'warrior' | 'builder' | 'scout' | 'leader' | 'craftsman';
+
 export interface Agent {
   id: string;
   name: string;
@@ -27,11 +29,14 @@ export interface Agent {
     socialCapital: number;
   };
   skills: string[];
+  specialization: Specialization;
   alive: boolean;
   currentMessage?: string;
   messageTimer?: number;
   alliances: Set<string>;
   enemies: Set<string>;
+  level: number;
+  experience: number;
 }
 
 export interface GameState {
@@ -67,6 +72,9 @@ export class GameEngine {
     for (const tribe of this.TRIBES) {
       for (let i = 0; i < 50; i++) {
         const agentId = `agent-${agentId++}`;
+        const skills = this.generateSkills();
+        const specialization = this.determineSpecialization(skills);
+
         agents.push({
           id: agentId,
           name: this.generateAgentName(tribe),
@@ -80,10 +88,13 @@ export class GameEngine {
             knowledge: 0,
             socialCapital: 50
           },
-          skills: this.generateSkills(),
+          skills,
+          specialization,
           alive: true,
           alliances: new Set(),
-          enemies: new Set()
+          enemies: new Set(),
+          level: 1,
+          experience: 0
         });
 
         // Create token account for this agent
@@ -109,6 +120,114 @@ export class GameEngine {
     const numSkills = 2 + Math.floor(Math.random() * 2);
     const shuffled = skills.sort(() => Math.random() - 0.5);
     return shuffled.slice(0, numSkills);
+  }
+
+  private determineSpecialization(skills: string[]): Specialization {
+    // Determine specialization based on primary skill
+    const skillCounts: { [key: string]: number } = {};
+    for (const skill of skills) {
+      skillCounts[skill] = (skillCounts[skill] || 0) + 1;
+    }
+
+    // Check for specializations
+    if (skillCounts['combat'] >= 1 && skillCounts['leadership'] >= 1) return 'warrior';
+    if (skillCounts['trade'] >= 1 && skillCounts['diplomacy'] >= 1) return 'merchant';
+    if (skillCounts['building'] >= 1) return 'builder';
+    if (skillCounts['research'] >= 1 && skillCounts['crafting'] >= 1) return 'craftsman';
+    if (skillCounts['diplomacy'] >= 1 && skillCounts['leadership'] >= 1) return 'leader';
+    if (skillCounts['farming'] >= 1 && skills.length < 3) return 'healer'; // Support role
+    if (skills.includes('trade') && skills.length < 3) return 'scout';
+
+    // Default to none
+    return 'none';
+  }
+
+  private grantExperience(agent: Agent, amount: number): void {
+    agent.experience += amount;
+
+    // Level up every 100 experience
+    const expNeeded = agent.level * 100;
+    if (agent.experience >= expNeeded) {
+      agent.level++;
+      agent.experience -= expNeeded;
+
+      // Bonus for leveling up
+      this.tokenSystem.earnTokens(agent.id, agent.level * 50, 'level_up');
+
+      this.state.messages.push({
+        id: `levelup-${Date.now()}-${agent.id}`,
+        agentId: agent.id,
+        agentName: agent.name,
+        tribe: agent.tribe,
+        content: `⬆️ ${agent.name} reached Level ${agent.level}!`,
+        timestamp: this.state.day,
+        type: 'celebration'
+      });
+    }
+  }
+
+  private useSpecialAbility(agent: Agent): void {
+    if (agent.specialization === 'none') return;
+
+    // Only use special ability 10% of the time
+    if (Math.random() > 0.1) return;
+
+    switch (agent.specialization) {
+      case 'healer':
+        // Heal nearby allies
+        const nearby = this.getNearbyAgents(agent, 2);
+        for (const other of nearby) {
+          if (other.tribe === agent.tribe && other.resources.food < 50) {
+            other.resources.food += 10;
+            other.resources.energy += 5;
+            this.grantExperience(agent, 5);
+          }
+        }
+        break;
+
+      case 'merchant':
+        // Bonus trading income
+        this.tokenSystem.earnTokens(agent.id, 15, 'merchant_bonus');
+        this.grantExperience(agent, 3);
+        break;
+
+      case 'warrior':
+        // Combat bonus - already handled in combat
+        this.grantExperience(agent, 4);
+        break;
+
+      case 'builder':
+        // Build structures (increase tribe resources)
+        agent.resources.materials += 8;
+        this.grantExperience(agent, 3);
+        break;
+
+      case 'scout':
+        // Move further and gain information
+        agent.resources.knowledge += 5;
+        this.grantExperience(agent, 3);
+        break;
+
+      case 'leader':
+        // Boost nearby allies' performance
+        const allies = this.getNearbyAgents(agent, 2);
+        for (const ally of allies) {
+          if (ally.tribe === agent.tribe) {
+            ally.resources.socialCapital += 5;
+            this.tokenSystem.earnTokens(ally.id, 5, 'leadership_bonus');
+          }
+        }
+        this.grantExperience(agent, 5);
+        break;
+
+      case 'craftsman':
+        // Create valuable items
+        agent.resources.materials += 5;
+        agent.resources.knowledge += 3;
+        this.tokenSystem.earnTokens(agent.id, 8, 'crafting');
+        this.grantExperience(agent, 4);
+        break;
+    }
   }
 
   private generateAgentName(tribe: string): string {
@@ -445,22 +564,28 @@ export class GameEngine {
     // Handle interactions with nearby agents
     this.handleAgentInteractions(agent);
 
+    // Use special ability
+    this.useSpecialAbility(agent);
+
     // Determine primary action based on skills
     let primaryAction = 'greeting';
     if (agent.skills.includes('farming')) {
       agent.resources.food += 8;
       primaryAction = 'farming';
       this.tokenSystem.earnTokens(agent.id, 2, 'farming');
+      this.grantExperience(agent, 2);
     }
     if (agent.skills.includes('mining')) {
       agent.resources.materials += 5;
       primaryAction = 'mining';
       this.tokenSystem.earnTokens(agent.id, 3, 'mining');
+      this.grantExperience(agent, 3);
     }
     if (agent.skills.includes('research')) {
       agent.resources.knowledge += 3;
       primaryAction = 'research';
       this.tokenSystem.earnTokens(agent.id, 5, 'research');
+      this.grantExperience(agent, 5);
     }
 
     // Generate dialogue
