@@ -30,6 +30,11 @@ export class GameRenderer3D {
   private cameraTarget: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
   private isDragging: boolean = false;
   private lastMousePos: { x: number; y: number } = { x: 0, y: 0 };
+  private raycaster: THREE.Raycaster;
+  private mouse: THREE.Vector2;
+  private selectedAgentId: string | null = null;
+  private selectionRing?: THREE.Mesh;
+  private onAgentSelect?: (agent: Agent) => void;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -55,6 +60,8 @@ export class GameRenderer3D {
     this.camera.lookAt(0, 0, 0);
 
     // Setup mouse controls for panning
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
     this.setupControls();
 
     // Renderer
@@ -176,10 +183,12 @@ export class GameRenderer3D {
   private setupControls(): void {
     let isPanning = false;
     let previousMousePosition = { x: 0, y: 0 };
+    let mouseDownPosition = { x: 0, y: 0 };
 
     this.canvas.addEventListener('mousedown', (e) => {
       isPanning = true;
       previousMousePosition = { x: e.clientX, y: e.clientY };
+      mouseDownPosition = { x: e.clientX, y: e.clientY };
     });
 
     this.canvas.addEventListener('mousemove', (e) => {
@@ -197,8 +206,19 @@ export class GameRenderer3D {
       this.updateCameraPosition();
     });
 
-    this.canvas.addEventListener('mouseup', () => {
+    this.canvas.addEventListener('mouseup', (e) => {
       isPanning = false;
+
+      // Check if this was a click (not a drag)
+      const dragDistance = Math.sqrt(
+        Math.pow(e.clientX - mouseDownPosition.x, 2) +
+        Math.pow(e.clientY - mouseDownPosition.y, 2)
+      );
+
+      if (dragDistance < 5) {
+        // This was a click - handle selection
+        this.handleClick(e);
+      }
     });
 
     this.canvas.addEventListener('mouseleave', () => {
@@ -229,6 +249,68 @@ export class GameRenderer3D {
       this.cameraTarget.z + 300
     );
     this.camera.lookAt(this.cameraTarget);
+  }
+
+  private handleClick(event: MouseEvent): void {
+    // Calculate mouse position in normalized device coordinates
+    const rect = this.canvas.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    // Raycast to find clicked agent
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const intersects = this.raycaster.intersectObjects(Array.from(this.agentMeshes.values()));
+
+    if (intersects.length > 0) {
+      const clickedMesh = intersects[0].object as AgentMesh;
+      this.selectAgent(clickedMesh.agentData.id);
+    } else {
+      this.deselectAgent();
+    }
+  }
+
+  private selectAgent(agentId: string): void {
+    this.selectedAgentId = agentId;
+
+    // Remove old selection ring
+    if (this.selectionRing) {
+      this.scene.remove(this.selectionRing);
+    }
+
+    // Create selection ring
+    const mesh = this.agentMeshes.get(agentId);
+    if (!mesh) return;
+
+    const geometry = new THREE.RingGeometry(6, 7, 32);
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.8,
+      side: THREE.DoubleSide
+    });
+
+    this.selectionRing = new THREE.Mesh(geometry, material);
+    this.selectionRing.rotation.x = -Math.PI / 2;
+    this.selectionRing.position.copy(mesh.position);
+    this.selectionRing.position.y = 0.1;
+    this.scene.add(this.selectionRing);
+
+    // Call selection callback
+    if (this.onAgentSelect && mesh.agentData) {
+      this.onAgentSelect(mesh.agentData);
+    }
+  }
+
+  private deselectAgent(): void {
+    this.selectedAgentId = null;
+    if (this.selectionRing) {
+      this.scene.remove(this.selectionRing);
+      this.selectionRing = undefined;
+    }
+  }
+
+  public setAgentSelectCallback(callback: (agent: Agent) => void): void {
+    this.onAgentSelect = callback;
   }
 
   private createBubbleContainer(): void {
@@ -696,6 +778,18 @@ export class GameRenderer3D {
 
       mesh.position.copy(mesh.currentPosition);
     }
+
+    // Update selection ring position
+    if (this.selectionRing && this.selectedAgentId) {
+      const selectedMesh = this.agentMeshes.get(this.selectedAgentId);
+      if (selectedMesh) {
+        this.selectionRing.position.set(
+          selectedMesh.position.x,
+          0.1,
+          selectedMesh.position.z
+        );
+      }
+    }
   }
 
   private getTribeColor(tribe: string): number {
@@ -729,6 +823,11 @@ export class GameRenderer3D {
     if (this.nameContainer) this.nameContainer.remove();
     if (this.bubbleContainer) this.bubbleContainer.remove();
     if (this.minimapContainer) this.minimapContainer.remove();
+
+    // Clean up selection ring
+    if (this.selectionRing) {
+      this.scene.remove(this.selectionRing);
+    }
 
     // Clean up meshes
     for (const mesh of this.agentMeshes.values()) {
