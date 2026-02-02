@@ -41,12 +41,28 @@
             background: #0f0f1a;
             padding: 15px;
             border: 1px solid #333;
-            max-height: 200px;
+            max-height: 250px;
             overflow-y: auto;
         }
         .log-entry {
-            margin: 5px 0;
-            font-size: 12px;
+            margin: 8px 0;
+            font-size: 13px;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .log-entry .agent-name {
+            font-weight: bold;
+        }
+        .log-entry .message-content {
+            color: #ccc;
+        }
+        .log-entry .timestamp {
+            color: #666;
+            font-size: 11px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         .tribe-Alpha { color: #ff6b6b; }
         .tribe-Beta { color: #4ecdc4; }
@@ -95,6 +111,29 @@
         const CELL_SIZE = 60;
 
         const engine = new GameEngine();
+        let lastMessageCount = 0;
+
+        function updateChatLog() {
+            const messages = engine.getMessages(30);
+            const logsContainer = document.getElementById('logs');
+
+            // Only update if there are new messages
+            if (messages.length === lastMessageCount) return;
+            lastMessageCount = messages.length;
+
+            logsContainer.innerHTML = '';
+            messages.reverse().forEach(msg => {
+                const entry = document.createElement('div');
+                entry.className = `log-entry tribe-${msg.tribe}`;
+                entry.innerHTML = `
+                    <span class="timestamp">[Day ${msg.timestamp}]</span>
+                    <span class="agent-name">${msg.agentName}</span>
+                    <span class="tribe-badge">(${msg.tribe})</span>:
+                    <span class="message-content">${msg.content}</span>
+                `;
+                logsContainer.appendChild(entry);
+            });
+        }
 
         function render() {
             const state = engine.getState();
@@ -127,16 +166,58 @@
                     'Gamma': '#ffe66d'
                 };
 
+                const x = agent.x * CELL_SIZE + CELL_SIZE / 2;
+                const y = agent.y * CELL_SIZE + CELL_SIZE / 2;
+
+                // Draw agent
                 ctx.fillStyle = colors[agent.tribe];
                 ctx.beginPath();
-                ctx.arc(
-                    agent.x * CELL_SIZE + CELL_SIZE / 2,
-                    agent.y * CELL_SIZE + CELL_SIZE / 2,
-                    10,
-                    0,
-                    Math.PI * 2
-                );
+                ctx.arc(x, y, 10, 0, Math.PI * 2);
                 ctx.fill();
+
+                // Draw speech bubble if agent has message
+                if (agent.currentMessage) {
+                    const bubbleWidth = Math.min(ctx.measureText(agent.currentMessage).width + 16, 120);
+                    const bubbleHeight = 24;
+                    const bubbleX = x - bubbleWidth / 2;
+                    const bubbleY = y - 35;
+
+                    // Bubble background
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                    ctx.strokeStyle = colors[agent.tribe];
+                    ctx.lineWidth = 2;
+
+                    // Rounded rectangle
+                    const radius = 6;
+                    ctx.beginPath();
+                    ctx.roundRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight, radius);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Triangle pointer
+                    ctx.beginPath();
+                    ctx.moveTo(x, bubbleY + bubbleHeight);
+                    ctx.lineTo(x - 6, bubbleY + bubbleHeight + 6);
+                    ctx.lineTo(x + 6, bubbleY + bubbleHeight);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Text
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.font = '11px "Courier New", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    // Truncate if too long
+                    let message = agent.currentMessage;
+                    if (ctx.measureText(message).width > bubbleWidth - 8) {
+                        const avgCharWidth = ctx.measureText(message).width / message.length;
+                        const maxChars = Math.floor((bubbleWidth - 8) / avgCharWidth);
+                        message = message.substring(0, maxChars - 2) + '..';
+                    }
+                    ctx.fillText(message, x, bubbleY + bubbleHeight / 2);
+                }
             }
 
             // Update stats
@@ -146,6 +227,9 @@
             document.getElementById('alpha').textContent = alive.filter(a => a.tribe === 'Alpha').length;
             document.getElementById('beta').textContent = alive.filter(a => a.tribe === 'Beta').length;
             document.getElementById('gamma').textContent = alive.filter(a => a.tribe === 'Gamma').length;
+
+            // Update chat log
+            updateChatLog();
         }
 
         // Game loop - one tick every second
