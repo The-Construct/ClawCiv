@@ -19,12 +19,14 @@ export class GameRenderer3D {
   private renderer: THREE.WebGLRenderer;
   private agentMeshes: Map<string, AgentMesh> = new Map();
   private resourceNodes: Map<string, THREE.Mesh> = new Map();
+  private territoryZones: Map<string, THREE.Mesh> = new Map();
   private readonly GRID_SIZE = 10;
   private readonly CELL_SIZE = 15;
   private readonly WORLD_SIZE = 1000;
   private canvas: HTMLCanvasElement;
   private bubbleContainer: HTMLDivElement;
   private nameContainer: HTMLDivElement;
+  private minimapContainer: HTMLDivElement;
   private cameraTarget: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
   private isDragging: boolean = false;
   private lastMousePos: { x: number; y: number } = { x: 0, y: 0 };
@@ -87,6 +89,73 @@ export class GameRenderer3D {
     // Create overlay containers
     this.createBubbleContainer();
     this.createNameContainer();
+    this.createMinimap();
+  }
+
+  private createMinimap(): void {
+    this.minimapContainer = document.createElement('div');
+    this.minimapContainer.id = 'minimap';
+    this.minimapContainer.style.cssText = `
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 200px;
+      height: 200px;
+      background: rgba(15, 15, 26, 0.9);
+      border: 2px solid #333;
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 100;
+      pointer-events: auto;
+    `;
+
+    const minimapCanvas = document.createElement('canvas');
+    minimapCanvas.width = 200;
+    minimapCanvas.height = 200;
+    minimapCanvas.style.cssText = `
+      width: 100%;
+      height: 100%;
+    `;
+    this.minimapContainer.appendChild(minimapCanvas);
+    this.canvas.parentElement.appendChild(this.minimapContainer);
+  }
+
+  private updateMinimap(state: GameState): void {
+    const canvas = this.minimapContainer.querySelector('canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear
+    ctx.fillStyle = '#0f0f1a';
+    ctx.fillRect(0, 0, 200, 200);
+
+    // Draw agents
+    for (const agent of state.agents) {
+      if (!agent.alive) continue;
+
+      // Map world position to minimap
+      const mapX = ((agent.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+      const mapY = ((agent.y + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+
+      const color = agent.tribe === 'Alpha' ? '#ff6b6b' :
+                    agent.tribe === 'Beta' ? '#4ecdc4' : '#ffe66d';
+
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(mapX, mapY, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw camera viewport
+    const camSize = 100; // Approximate viewport size on minimap
+    const camX = ((this.cameraTarget.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+    const camY = ((this.cameraTarget.z + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(camX - camSize / 2, camY - camSize / 2, camSize, camSize);
   }
 
   private createNameContainer(): void {
@@ -259,6 +328,54 @@ export class GameRenderer3D {
     }
   }
 
+  private updateTerritory(state: GameState): void {
+    // Clear old territory zones
+    for (const zone of this.territoryZones.values()) {
+      this.scene.remove(zone);
+    }
+    this.territoryZones.clear();
+
+    // Group agents by tribe and calculate centers
+    const tribeCenters = new Map<string, THREE.Vector3>();
+
+    for (const agent of state.agents) {
+      if (!agent.alive) continue;
+
+      const mesh = this.agentMeshes.get(agent.id);
+      if (!mesh) continue;
+
+      if (!tribeCenters.has(agent.tribe)) {
+        tribeCenters.set(agent.tribe, new THREE.Vector3());
+      }
+      tribeCenters.get(agent.tribe)!.add(mesh.position);
+    }
+
+    // Average positions to find tribe centers
+    for (const [tribe, pos] of tribeCenters) {
+      const count = state.agents.filter(a => a.alive && a.tribe === tribe).length;
+      if (count > 0) {
+        pos.divideScalar(count);
+      }
+    }
+
+    // Create territory zones around tribe centers
+    for (const [tribe, center] of tribeCenters) {
+      const geometry = new THREE.CircleGeometry(80, 32);
+      const material = new THREE.MeshBasicMaterial({
+        color: this.getTribeColor(tribe),
+        transparent: true,
+        opacity: 0.15,
+        side: THREE.DoubleSide
+      });
+
+      const zone = new THREE.Mesh(geometry, material);
+      zone.rotation.x = -Math.PI / 2;
+      zone.position.set(center.x, 0.1, center.z);
+      this.scene.add(zone);
+      this.territoryZones.set(tribe, zone);
+    }
+  }
+
   private updateBubbles(state: GameState): void {
     // Clear old bubbles
     const existingBubbles = this.bubbleContainer.querySelectorAll('.agent-bubble');
@@ -327,6 +444,12 @@ export class GameRenderer3D {
   public update(state: GameState): void {
     // Update resources
     this.updateResources(state);
+
+    // Update territory visualization
+    this.updateTerritory(state);
+
+    // Update minimap
+    this.updateMinimap(state);
 
     // Remove old agent meshes
     for (const [id, mesh] of this.agentMeshes) {
@@ -517,6 +640,23 @@ export class GameRenderer3D {
     // Update label positions (must happen every frame to follow camera)
     this.updateLabelPositions();
 
+    // Update minimap camera position indicator
+    const canvas = this.minimapContainer?.querySelector('canvas') as HTMLCanvasElement;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        // Redraw camera viewport indicator
+        const camSize = 100;
+        const camX = ((this.cameraTarget.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+        const camY = ((this.cameraTarget.z + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+
+        // Redraw only the viewport indicator (optimization)
+        ctx.strokeStyle = '#00ff88';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(camX - camSize / 2, camY - camSize / 2, camSize, camSize);
+      }
+    }
+
     // Animate resources (floating effect)
     for (const node of this.resourceNodes.values()) {
       const nodeData = node as any;
@@ -588,6 +728,7 @@ export class GameRenderer3D {
     // Clean up DOM elements
     if (this.nameContainer) this.nameContainer.remove();
     if (this.bubbleContainer) this.bubbleContainer.remove();
+    if (this.minimapContainer) this.minimapContainer.remove();
 
     // Clean up meshes
     for (const mesh of this.agentMeshes.values()) {
@@ -595,7 +736,15 @@ export class GameRenderer3D {
       if (mesh.actionElement) mesh.actionElement.remove();
       this.scene.remove(mesh);
     }
+    for (const node of this.resourceNodes.values()) {
+      this.scene.remove(node);
+    }
+    for (const zone of this.territoryZones.values()) {
+      this.scene.remove(zone);
+    }
     this.agentMeshes.clear();
+    this.resourceNodes.clear();
+    this.territoryZones.clear();
     this.renderer.dispose();
   }
 }
