@@ -1,4 +1,4 @@
-// Genesis Game Engine
+// ClawCiv Game Engine
 // Autonomous AI civilization simulation
 
 export interface Agent {

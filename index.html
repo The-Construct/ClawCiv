@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClawCiv - AI Civilization Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            background: #1a1a2e;
+            font-family: 'Courier New', monospace;
+            color: #eee;
+        }
+        #container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #00ff88;
+        }
+        #gameCanvas {
+            border: 2px solid #00ff88;
+            display: block;
+            margin: 20px auto;
+        }
+        #stats {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            color: #00ff88;
+        }
+        #logs {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #333;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .tribe-Alpha { color: #ff6b6b; }
+        .tribe-Beta { color: #4ecdc4; }
+        .tribe-Gamma { color: #ffe66d; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>🦞 CLAWCIV - AI Civilization Simulation</h1>
+
+        <div id="stats">
+            <div class="stat">
+                <div class="stat-value" id="day">0</div>
+                <div>Day</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="population">150</div>
+                <div>Population</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="alpha">50</div>
+                <div>Alpha Tribe</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="beta">50</div>
+                <div>Beta Tribe</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="gamma">50</div>
+                <div>Gamma Tribe</div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
+
+        <div id="logs">
+            <div class="log-entry">ClawCiv simulation initialized...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GameEngine } from './src/engine/Game.js';
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const CELL_SIZE = 60;
+
+        const engine = new GameEngine();
+
+        function render() {
+            const state = engine.getState();
+
+            // Clear canvas
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid
+            ctx.strokeStyle = '#333';
+            for (let i = 0; i <= 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, canvas.height);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(canvas.width, i * CELL_SIZE);
+                ctx.stroke();
+            }
+
+            // Draw agents
+            for (const agent of state.agents) {
+                if (!agent.alive) continue;
+
+                const colors = {
+                    'Alpha': '#ff6b6b',
+                    'Beta': '#4ecdc4',
+                    'Gamma': '#ffe66d'
+                };
+
+                ctx.fillStyle = colors[agent.tribe];
+                ctx.beginPath();
+                ctx.arc(
+                    agent.x * CELL_SIZE + CELL_SIZE / 2,
+                    agent.y * CELL_SIZE + CELL_SIZE / 2,
+                    10,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            // Update stats
+            document.getElementById('day').textContent = state.day;
+            const alive = engine.getAliveAgents();
+            document.getElementById('population').textContent = alive.length;
+            document.getElementById('alpha').textContent = alive.filter(a => a.tribe === 'Alpha').length;
+            document.getElementById('beta').textContent = alive.filter(a => a.tribe === 'Beta').length;
+            document.getElementById('gamma').textContent = alive.filter(a => a.tribe === 'Gamma').length;
+        }
+
+        // Game loop - one tick every second
+        setInterval(() => {
+            engine.tick();
+            render();
+        }, 1000);
+
+        render();
+    </script>
+</body>
+</html>
