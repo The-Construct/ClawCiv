@@ -923,12 +923,12 @@
         setInterval(gameLoop, 3000);
 
         // Render loop (smooth 60fps)
-        function animate() {
+        function animate(time) {
             requestAnimationFrame(animate);
-            renderer.animate?.(); // Smooth agent movement
+            renderer.animate?.(time); // Smooth agent movement & resource animation
             renderer.render();
         }
-        animate();
+        animate(0);
 
         // Handle resize
         window.addEventListener('resize', () => {

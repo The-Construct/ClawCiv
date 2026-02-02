@@ -16,11 +16,15 @@ export class GameRenderer3D {
   private camera: THREE.OrthographicCamera;
   private renderer: THREE.WebGLRenderer;
   private agentMeshes: Map<string, AgentMesh> = new Map();
-  private gridHelper: THREE.GridHelper;
+  private resourceNodes: Map<string, THREE.Mesh> = new Map();
   private readonly GRID_SIZE = 10;
-  private readonly CELL_SIZE = 10;
+  private readonly CELL_SIZE = 15;
+  private readonly WORLD_SIZE = 200;
   private canvas: HTMLCanvasElement;
   private bubbleContainer: HTMLDivElement;
+  private cameraTarget: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+  private isDragging: boolean = false;
+  private lastMousePos: { x: number; y: number } = { x: 0, y: 0 };
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -31,19 +35,22 @@ export class GameRenderer3D {
 
     // Orthographic camera for isometric view
     const aspect = canvas.clientWidth / canvas.clientHeight;
-    const frustumSize = 150;
+    const frustumSize = 200;
     this.camera = new THREE.OrthographicCamera(
       frustumSize * aspect / -2,
       frustumSize * aspect / 2,
       frustumSize / 2,
       frustumSize / -2,
       1,
-      1000
+      2000
     );
 
     // Isometric camera position
-    this.camera.position.set(100, 100, 100);
+    this.camera.position.set(150, 150, 150);
     this.camera.lookAt(0, 0, 0);
+
+    // Setup mouse controls for panning
+    this.setupControls();
 
     // Renderer
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -62,11 +69,8 @@ export class GameRenderer3D {
     directionalLight.shadow.mapSize.height = 2048;
     this.scene.add(directionalLight);
 
-    // Grid
-    this.createGrid();
-
-    // Ground plane
-    const groundGeometry = new THREE.PlaneGeometry(100, 100);
+    // Large ground plane (no grid)
+    const groundGeometry = new THREE.PlaneGeometry(this.WORLD_SIZE, this.WORLD_SIZE);
     const groundMaterial = new THREE.MeshStandardMaterial({
       color: 0x0f0f1a,
       roughness: 0.8
@@ -81,11 +85,62 @@ export class GameRenderer3D {
     this.createBubbleContainer();
   }
 
-  private createGrid(): void {
-    const size = this.GRID_SIZE * this.CELL_SIZE;
-    this.gridHelper = new THREE.GridHelper(size, this.GRID_SIZE, 0x00ff88, 0x333333);
-    this.gridHelper.position.y = 0;
-    this.scene.add(this.gridHelper);
+  private setupControls(): void {
+    let isPanning = false;
+    let previousMousePosition = { x: 0, y: 0 };
+
+    this.canvas.addEventListener('mousedown', (e) => {
+      isPanning = true;
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+    });
+
+    this.canvas.addEventListener('mousemove', (e) => {
+      if (!isPanning) return;
+
+      const deltaX = e.clientX - previousMousePosition.x;
+      const deltaY = e.clientY - previousMousePosition.y;
+
+      // Pan camera (inverted for natural feel)
+      const panSpeed = 0.5;
+      this.cameraTarget.x -= deltaX * panSpeed;
+      this.cameraTarget.z -= deltaY * panSpeed;
+
+      previousMousePosition = { x: e.clientX, y: e.clientY };
+      this.updateCameraPosition();
+    });
+
+    this.canvas.addEventListener('mouseup', () => {
+      isPanning = false;
+    });
+
+    this.canvas.addEventListener('mouseleave', () => {
+      isPanning = false;
+    });
+
+    // Wheel zoom
+    this.canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const zoomSpeed = 0.5;
+      const frustumSize = this.camera.right - this.camera.left;
+      const newFrustumSize = Math.max(50, Math.min(400, frustumSize + e.deltaY * zoomSpeed));
+
+      const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+      this.camera.left = -newFrustumSize * aspect / 2;
+      this.camera.right = newFrustumSize * aspect / 2;
+      this.camera.top = newFrustumSize / 2;
+      this.camera.bottom = -newFrustumSize / 2;
+      this.camera.updateProjectionMatrix();
+    }, { passive: false });
+  }
+
+  private updateCameraPosition(): void {
+    // Isometric offset from target
+    this.camera.position.set(
+      this.cameraTarget.x + 150,
+      this.cameraTarget.y + 150,
+      this.cameraTarget.z + 150
+    );
+    this.camera.lookAt(this.cameraTarget);
   }
 
   private createBubbleContainer(): void {
@@ -134,19 +189,80 @@ export class GameRenderer3D {
     return texture;
   }
 
+  private createResourceNode(x: number, z: number, resourceType: string): THREE.Mesh {
+    const colors = {
+      'food': 0x4ade80,
+      'energy': 0xfbbf24,
+      'materials': 0x94a3b8,
+      'knowledge': 0x818cf8,
+      'social': 0xf472b6
+    };
+
+    const geometry = new THREE.OctahedronGeometry(1.5, 0);
+    const material = new THREE.MeshStandardMaterial({
+      color: colors[resourceType as keyof typeof colors] || 0xffffff,
+      emissive: colors[resourceType as keyof typeof colors] || 0xffffff,
+      emissiveIntensity: 0.3,
+      roughness: 0.4,
+      metalness: 0.6
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(x, 1.5, z);
+    mesh.castShadow = true;
+
+    // Add floating animation data
+    (mesh as any).resourceType = resourceType;
+    (mesh as any).baseY = 1.5;
+    (mesh as any).phase = Math.random() * Math.PI * 2;
+
+    return mesh;
+  }
+
+  private updateResources(state: GameState): void {
+    // Clear old resource nodes
+    for (const node of this.resourceNodes.values()) {
+      this.scene.remove(node);
+    }
+    this.resourceNodes.clear();
+
+    // Spawn resource nodes based on game state
+    // Create resources randomly across the map
+    for (let i = 0; i < 30; i++) {
+      const x = (Math.random() - 0.5) * this.WORLD_SIZE * 0.8;
+      const z = (Math.random() - 0.5) * this.WORLD_SIZE * 0.8;
+      const types = ['food', 'energy', 'materials', 'knowledge', 'social'];
+      const type = types[Math.floor(Math.random() * types.length)];
+
+      const node = this.createResourceNode(x, z, type);
+      this.scene.add(node);
+      this.resourceNodes.set(`${i}`, node);
+    }
+  }
+
   private updateBubbles(state: GameState): void {
     // Clear old bubbles
     const existingBubbles = this.bubbleContainer.querySelectorAll('.agent-bubble');
     existingBubbles.forEach(b => b.remove());
 
-    // Create new bubbles for agents with messages
     const containerRect = this.canvas.getBoundingClientRect();
 
-    for (const agent of state.agents) {
-      if (!agent.alive || !agent.currentMessage) continue;
+    for (const [agentId, mesh] of this.agentMeshes) {
+      const agent = state.agents.find(a => a.id === agentId);
+      if (!agent || !agent.alive || !agent.currentMessage) continue;
 
-      const x = (agent.x - this.GRID_SIZE / 2) * this.CELL_SIZE + containerRect.left + containerRect.width / 2;
-      const y = -(agent.y - this.GRID_SIZE / 2) * this.CELL_SIZE + containerRect.top + containerRect.height / 2;
+      // Project 3D position to 2D screen space
+      const worldPos = mesh.position.clone();
+      worldPos.y += 5; // Offset above character
+
+      const screenPos = worldPos.project(this.camera);
+
+      // Convert to CSS coordinates
+      const x = (screenPos.x * 0.5 + 0.5) * containerRect.width;
+      const y = (screenPos.y * -0.5 + 0.5) * containerRect.height;
+
+      // Don't show if behind camera
+      if (screenPos.z > 1) continue;
 
       const bubble = document.createElement('div');
       bubble.className = 'agent-bubble';
@@ -154,7 +270,7 @@ export class GameRenderer3D {
         position: absolute;
         left: ${x}px;
         top: ${y}px;
-        transform: translate(-50%, -120%);
+        transform: translate(-50%, -100%);
         background: rgba(255, 255, 255, 0.95);
         border: 2px solid ${this.getTribeColorHex(agent.tribe)};
         padding: 8px 12px;
@@ -190,6 +306,9 @@ export class GameRenderer3D {
   }
 
   public update(state: GameState): void {
+    // Update resources
+    this.updateResources(state);
+
     // Remove old agent meshes
     for (const [id, mesh] of this.agentMeshes) {
       const agent = state.agents.find(a => a.id === id);
@@ -215,22 +334,35 @@ export class GameRenderer3D {
         mesh = new THREE.Sprite(material) as AgentMesh;
         mesh.agentData = agent;
 
-        // Set initial position
-        const x = (agent.x - this.GRID_SIZE / 2) * this.CELL_SIZE;
-        const z = (agent.y - this.GRID_SIZE / 2) * this.CELL_SIZE;
+        // Random initial position across the world
+        const x = (Math.random() - 0.5) * this.WORLD_SIZE * 0.7;
+        const z = (Math.random() - 0.5) * this.WORLD_SIZE * 0.7;
         mesh.currentPosition = new THREE.Vector3(x, 3, z);
         mesh.targetPosition = new THREE.Vector3(x, 3, z);
         mesh.position.copy(mesh.currentPosition);
-        mesh.scale.set(8, 8, 1);
+        mesh.scale.set(10, 10, 1);
 
         this.scene.add(mesh);
         this.agentMeshes.set(agent.id, mesh);
       }
 
-      // Update target position
-      const x = (agent.x - this.GRID_SIZE / 2) * this.CELL_SIZE;
-      const z = (agent.y - this.GRID_SIZE / 2) * this.CELL_SIZE;
-      mesh.targetPosition.set(x, 3, z);
+      // Move agents based on game events
+      if (agent.currentMessage || agent.resources.food < 10 || agent.resources.energy < 5) {
+        // Agents with messages or low resources move more
+        const moveDistance = 8;
+        const angle = Math.random() * Math.PI * 2;
+        const newX = mesh.targetPosition.x + Math.cos(angle) * moveDistance;
+        const newZ = mesh.targetPosition.z + Math.sin(angle) * moveDistance;
+
+        // Keep within world bounds
+        const halfWorld = this.WORLD_SIZE * 0.4;
+        mesh.targetPosition.set(
+          Math.max(-halfWorld, Math.min(halfWorld, newX)),
+          3,
+          Math.max(-halfWorld, Math.min(halfWorld, newZ))
+        );
+      }
+
       mesh.agentData = agent;
     }
 
@@ -238,10 +370,44 @@ export class GameRenderer3D {
     this.updateBubbles(state);
   }
 
-  public animate(): void {
+  public animate(time: number = 0): void {
+    // Animate resources (floating effect)
+    for (const node of this.resourceNodes.values()) {
+      const nodeData = node as any;
+      nodeData.phase += 0.02;
+      node.position.y = nodeData.baseY + Math.sin(nodeData.phase) * 0.3;
+      node.rotation.y += 0.01;
+    }
+
     // Smooth interpolation for all agents
+    const agentPositions: THREE.Vector3[] = [];
+
     for (const mesh of this.agentMeshes.values()) {
-      mesh.currentPosition.lerp(mesh.targetPosition, 0.05);
+      // Collect positions for collision avoidance
+      agentPositions.push(mesh.currentPosition.clone());
+    }
+
+    for (let i = 0; i < this.agentMeshes.size; i++) {
+      const mesh = [...this.agentMeshes.values()][i];
+
+      // Basic lerp towards target
+      mesh.currentPosition.lerp(mesh.targetPosition, 0.02);
+
+      // Collision avoidance - push away from nearby agents
+      const minDistance = 8;
+      for (let j = 0; j < agentPositions.length; j++) {
+        if (i === j) continue;
+
+        const otherPos = agentPositions[j];
+        const distance = mesh.currentPosition.distanceTo(otherPos);
+
+        if (distance < minDistance && distance > 0) {
+          const pushDirection = mesh.currentPosition.clone().sub(otherPos).normalize();
+          const pushStrength = (minDistance - distance) * 0.1;
+          mesh.currentPosition.add(pushDirection.multiplyScalar(pushStrength));
+        }
+      }
+
       mesh.position.copy(mesh.currentPosition);
     }
   }
