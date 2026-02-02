@@ -230,6 +230,136 @@
             from { opacity: 1; }
             to { opacity: 0; }
         }
+        #agentPanel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 15, 26, 0.98);
+            border: 2px solid #00ff88;
+            border-radius: 12px;
+            padding: 25px;
+            min-width: 400px;
+            max-width: 500px;
+            z-index: 2000;
+            display: none;
+            box-shadow: 0 20px 60px rgba(0, 255, 136, 0.2);
+            backdrop-filter: blur(20px);
+        }
+        #agentPanel.active {
+            display: block;
+            animation: panelIn 0.3s ease-out;
+        }
+        @keyframes panelIn {
+            from { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        #agentPanel h2 {
+            margin: 0 0 15px 0;
+            color: #00ff88;
+            font-size: 22px;
+        }
+        .agent-panel-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .agent-panel-close:hover {
+            background: #ff5252;
+        }
+        .agent-panel-section {
+            margin: 15px 0;
+            padding: 12px;
+            background: rgba(26, 26, 46, 0.8);
+            border-radius: 8px;
+        }
+        .agent-panel-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .agent-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .agent-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 4px;
+        }
+        .agent-stat-label {
+            color: #888;
+            font-size: 12px;
+        }
+        .agent-stat-value {
+            color: #00ff88;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .agent-skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .skill-tag {
+            background: rgba(0, 255, 136, 0.15);
+            color: #00ff88;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .specialization-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        .agent-relations {
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .relation-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #222;
+            font-size: 12px;
+        }
+        .relation-item:last-child {
+            border-bottom: none;
+        }
+        #agentOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1999;
+            display: none;
+        }
+        #agentOverlay.active {
+            display: block;
+        }
         #leaderboard {
             background: #0f0f1a;
             padding: 15px;
@@ -312,6 +442,66 @@
 </head>
 <body>
     <div id="notifications"></div>
+    <div id="agentOverlay"></div>
+    <div id="agentPanel">
+        <button class="agent-panel-close" onclick="closeAgentPanel()">×</button>
+        <h2 id="agentPanelName">Agent Name</h2>
+        <div class="specialization-badge" id="agentPanelSpecialization">Specialization</div>
+
+        <div class="agent-panel-section">
+            <h3>📊 Stats</h3>
+            <div class="agent-stats-grid">
+                <div class="agent-stat">
+                    <span class="agent-stat-label">Level</span>
+                    <span class="agent-stat-value" id="agentLevel">1</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">Tribe</span>
+                    <span class="agent-stat-value" id="agentTribe">Alpha</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">XP</span>
+                    <span class="agent-stat-value" id="agentXP">0</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">$CLAW</span>
+                    <span class="agent-stat-value" id="agentTokens">100</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="agent-panel-section">
+            <h3>🎒 Resources</h3>
+            <div class="agent-stats-grid">
+                <div class="agent-stat">
+                    <span class="agent-stat-label">🌾 Food</span>
+                    <span class="agent-stat-value" id="agentFood">100</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">⚡ Energy</span>
+                    <span class="agent-stat-value" id="agentEnergy">100</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">🔧 Materials</span>
+                    <span class="agent-stat-value" id="agentMaterials">50</span>
+                </div>
+                <div class="agent-stat">
+                    <span class="agent-stat-label">📚 Knowledge</span>
+                    <span class="agent-stat-value" id="agentKnowledge">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="agent-panel-section">
+            <h3>⚔️ Skills</h3>
+            <div class="agent-skills" id="agentSkills"></div>
+        </div>
+
+        <div class="agent-panel-section">
+            <h3>🤝 Relations</h3>
+            <div class="agent-relations" id="agentRelations"></div>
+        </div>
+    </div>
 
     <div id="container">
         <h1>🦞 CLAWCIV - AI Civilization Simulation</h1>
@@ -817,6 +1007,114 @@
             // Update leaderboard
             updateLeaderboard();
         }
+
+        // Agent panel system
+        let selectedAgent = null;
+
+        function openAgentPanel(agent) {
+            selectedAgent = agent;
+
+            // Update panel content
+            document.getElementById('agentPanelName').textContent = agent.name;
+            document.getElementById('agentPanelName').className = `tribe-${agent.tribe}`;
+
+            const specializationDisplay = agent.specialization === 'none' ? 'None' :
+                agent.specialization.charAt(0).toUpperCase() + agent.specialization.slice(1);
+            document.getElementById('agentPanelSpecialization').textContent = specializationDisplay;
+
+            // Stats
+            document.getElementById('agentLevel').textContent = agent.level || 1;
+            document.getElementById('agentTribe').textContent = agent.tribe;
+            document.getElementById('agentTribe').className = `agent-stat-value tribe-${agent.tribe}`;
+            document.getElementById('agentXP').textContent = agent.experience || 0;
+            document.getElementById('agentTokens').textContent = engine.getAgentBalance(agent.id);
+
+            // Resources
+            document.getElementById('agentFood').textContent = Math.round(agent.resources.food);
+            document.getElementById('agentEnergy').textContent = Math.round(agent.resources.energy);
+            document.getElementById('agentMaterials').textContent = Math.round(agent.resources.materials);
+            document.getElementById('agentKnowledge').textContent = Math.round(agent.resources.knowledge);
+
+            // Skills
+            const skillsContainer = document.getElementById('agentSkills');
+            skillsContainer.innerHTML = '';
+            for (const skill of agent.skills) {
+                const tag = document.createElement('span');
+                tag.className = 'skill-tag';
+                tag.textContent = skill.charAt(0).toUpperCase() + skill.slice(1);
+                skillsContainer.appendChild(tag);
+            }
+
+            // Relations
+            const relationsContainer = document.getElementById('agentRelations');
+            relationsContainer.innerHTML = '';
+
+            if (agent.alliances.size > 0 || agent.enemies.size > 0) {
+                // Show allies
+                for (const allyId of agent.alliances) {
+                    const ally = engine.getState().agents.find(a => a.id === allyId);
+                    if (ally && ally.alive) {
+                        const item = document.createElement('div');
+                        item.className = 'relation-item';
+                        item.innerHTML = `
+                            <span class="tribe-${ally.tribe}">${ally.name}</span>
+                            <span style="color: #4ecdc4;">🤝 Ally</span>
+                        `;
+                        relationsContainer.appendChild(item);
+                    }
+                }
+
+                // Show enemies
+                for (const enemyId of agent.enemies) {
+                    const enemy = engine.getState().agents.find(a => a.id === enemyId);
+                    if (enemy && enemy.alive) {
+                        const item = document.createElement('div');
+                        item.className = 'relation-item';
+                        item.innerHTML = `
+                            <span class="tribe-${enemy.tribe}">${enemy.name}</span>
+                            <span style="color: #ff6b6b;">⚔️ Enemy</span>
+                        `;
+                        relationsContainer.appendChild(item);
+                    }
+                }
+            } else {
+                relationsContainer.innerHTML = '<div style="color: #666; font-size: 12px;">No relations yet</div>';
+            }
+
+            // Show panel
+            document.getElementById('agentOverlay').classList.add('active');
+            document.getElementById('agentPanel').classList.add('active');
+        }
+
+        function closeAgentPanel() {
+            selectedAgent = null;
+            document.getElementById('agentOverlay').classList.remove('active');
+            document.getElementById('agentPanel').classList.remove('active');
+        }
+
+        // Canvas click handler
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+
+            const gridX = Math.floor(clickX / CELL_SIZE);
+            const gridY = Math.floor(clickY / CELL_SIZE);
+
+            const state = engine.getState();
+            const clickedAgent = state.agents.find(a =>
+                a.alive &&
+                a.x === gridX &&
+                a.y === gridY
+            );
+
+            if (clickedAgent) {
+                openAgentPanel(clickedAgent);
+            }
+        });
+
+        // Close panel on overlay click
+        document.getElementById('agentOverlay').addEventListener('click', closeAgentPanel);
 
         // Game loop - one tick every second
         setInterval(() => {
