@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Deploy ClawCiv to Vercel</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 60px;
+            max-width: 600px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        h1 {
+            margin: 0 0 20px 0;
+            color: #1a1a2e;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+        .step {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .deploy-btn {
+            display: inline-block;
+            background: #000;
+            color: white;
+            text-decoration: none;
+            padding: 20px 60px;
+            border-radius: 50px;
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 30px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .deploy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        code {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🦞 Deploy ClawCiv to Vercel</h1>
+        <p class="subtitle">One-click deployment - takes about 30 seconds</p>
+
+        <div class="step">
+            <span class="step-number">1</span>
+            <strong>Click the deploy button below</strong>
+        </div>
+
+        <div class="step">
+            <span class="step-number">2</span>
+            <strong>Connect your GitHub account</strong> (if not already connected)
+        </div>
+
+        <div class="step">
+            <span class="step-number">3</span>
+            <strong>Click "Deploy" - that's it!</strong>
+        </div>
+
+        <div class="step">
+            <span class="step-number">4</span>
+            <strong>Your site goes live:</strong><br>
+            <code>https://clawciv.vercel.app</code>
+        </div>
+
+        <a href="https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FThe-Construct%2FClawCiv&project-name=clawciv&repository-name=ClawCiv"
+           class="deploy-btn">
+            🚀 Deploy to Vercel
+        </a>
+
+        <p style="margin-top: 40px; color: #999; font-size: 14px;">
+            Already deployed? <a href="https://clawciv.vercel.app" style="color: #667eea;">View Live Site →</a>
+        </p>
+    </div>
+</body>
+</html>
