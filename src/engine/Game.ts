@@ -1,6 +1,8 @@
 // ClawCiv Game Engine
 // Autonomous AI civilization simulation
 
+import { TokenSystem } from '../economy/Token.js';
+
 export interface Message {
   id: string;
   agentId: string;
@@ -45,8 +47,10 @@ export class GameEngine {
   private readonly GRID_SIZE = 10;
   private readonly INITIAL_AGENTS = 150;
   private readonly TRIBES = ['Alpha', 'Beta', 'Gamma'];
+  private tokenSystem: TokenSystem;
 
   constructor() {
+    this.tokenSystem = new TokenSystem();
     this.state = this.initializeState();
   }
 
@@ -62,8 +66,9 @@ export class GameEngine {
 
     for (const tribe of this.TRIBES) {
       for (let i = 0; i < 50; i++) {
+        const agentId = `agent-${agentId++}`;
         agents.push({
-          id: `agent-${agentId++}`,
+          id: agentId,
           name: this.generateAgentName(tribe),
           tribe,
           x: Math.floor(Math.random() * this.GRID_SIZE),
@@ -80,6 +85,9 @@ export class GameEngine {
           alliances: new Set(),
           enemies: new Set()
         });
+
+        // Create token account for this agent
+        this.tokenSystem.createAgentAccount(agentId, tribe);
       }
     }
 
@@ -244,6 +252,10 @@ export class GameEngine {
       type: 'trade'
     });
 
+    // Reward successful trade
+    this.tokenSystem.earnTokens(agent.id, 10, 'trade');
+    this.tokenSystem.earnTokens(other.id, 10, 'trade');
+
     return true;
   }
 
@@ -319,6 +331,9 @@ export class GameEngine {
       });
     }
 
+    // Reward combat victory
+    this.tokenSystem.earnTokens(attacker.id, 15, 'combat_victory');
+
     return true;
   }
 
@@ -352,6 +367,10 @@ export class GameEngine {
           type: 'diplomacy'
         });
 
+        // Reward successful alliance
+        this.tokenSystem.earnTokens(agent.id, 20, 'alliance_formed');
+        this.tokenSystem.earnTokens(other.id, 20, 'alliance_formed');
+
         return true;
       }
     }
@@ -374,6 +393,10 @@ export class GameEngine {
         timestamp: this.state.day,
         type: 'diplomacy'
       });
+
+      // Reward successful peace treaty
+      this.tokenSystem.earnTokens(agent.id, 25, 'peace_treaty');
+      this.tokenSystem.earnTokens(other.id, 25, 'peace_treaty');
 
       return true;
     }
@@ -427,14 +450,17 @@ export class GameEngine {
     if (agent.skills.includes('farming')) {
       agent.resources.food += 8;
       primaryAction = 'farming';
+      this.tokenSystem.earnTokens(agent.id, 2, 'farming');
     }
     if (agent.skills.includes('mining')) {
       agent.resources.materials += 5;
       primaryAction = 'mining';
+      this.tokenSystem.earnTokens(agent.id, 3, 'mining');
     }
     if (agent.skills.includes('research')) {
       agent.resources.knowledge += 3;
       primaryAction = 'research';
+      this.tokenSystem.earnTokens(agent.id, 5, 'research');
     }
 
     // Generate dialogue
@@ -493,5 +519,17 @@ export class GameEngine {
 
   public addMessage(message: Message): void {
     this.state.messages.push(message);
+  }
+
+  public getTokenSystem(): TokenSystem {
+    return this.tokenSystem;
+  }
+
+  public getAgentBalance(agentId: string): number {
+    return this.tokenSystem.getBalance(agentId);
+  }
+
+  public getMarketStats() {
+    return this.tokenSystem.getMarketStats();
   }
 }

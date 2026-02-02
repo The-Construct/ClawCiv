@@ -67,6 +67,58 @@
         .tribe-Alpha { color: #ff6b6b; }
         .tribe-Beta { color: #4ecdc4; }
         .tribe-Gamma { color: #ffe66d; }
+        #tokenMarket {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #00ff88;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        #tokenMarket h2 {
+            color: #00ff88;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        .market-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 10px;
+        }
+        .market-stat {
+            background: #1a1a2e;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .market-stat-label {
+            color: #888;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .market-stat-value {
+            color: #00ff88;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .tribe-treasuries {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #333;
+        }
+        .treasury {
+            text-align: center;
+        }
+        .treasury-label {
+            color: #888;
+            font-size: 12px;
+        }
+        .treasury-balance {
+            font-size: 18px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -101,6 +153,38 @@
         <div id="logs">
             <div class="log-entry">ClawCiv simulation initialized...</div>
         </div>
+
+        <div id="tokenMarket">
+            <h2>💰 $CLAW Token Market</h2>
+            <div class="market-stats">
+                <div class="market-stat">
+                    <div class="market-stat-label">Total Supply</div>
+                    <div class="market-stat-value" id="totalSupply">0</div>
+                </div>
+                <div class="market-stat">
+                    <div class="market-stat-label">Total Accounts</div>
+                    <div class="market-stat-value" id="totalAccounts">0</div>
+                </div>
+                <div class="market-stat">
+                    <div class="market-stat-label">Transactions</div>
+                    <div class="market-stat-value" id="totalTransactions">0</div>
+                </div>
+            </div>
+            <div class="tribe-treasuries">
+                <div class="treasury">
+                    <div class="treasury-label tribe-Alpha">Alpha Treasury</div>
+                    <div class="treasury-balance tribe-Alpha" id="alphaTreasury">0</div>
+                </div>
+                <div class="treasury">
+                    <div class="treasury-label tribe-Beta">Beta Treasury</div>
+                    <div class="treasury-balance tribe-Beta" id="betaTreasury">0</div>
+                </div>
+                <div class="treasury">
+                    <div class="treasury-label tribe-Gamma">Gamma Treasury</div>
+                    <div class="treasury-balance tribe-Gamma" id="gammaTreasury">0</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script type="module">
@@ -112,6 +196,23 @@
 
         const engine = new GameEngine();
         let lastMessageCount = 0;
+        let lastMarketUpdate = 0;
+
+        function updateTokenMarket() {
+            const now = Date.now();
+            if (now - lastMarketUpdate < 5000) return; // Update every 5 seconds
+            lastMarketUpdate = now;
+
+            const stats = engine.getMarketStats();
+
+            document.getElementById('totalSupply').textContent = stats.totalSupply.toLocaleString();
+            document.getElementById('totalAccounts').textContent = stats.totalAccounts;
+            document.getElementById('totalTransactions').textContent = stats.totalTransactions.toLocaleString();
+
+            document.getElementById('alphaTreasury').textContent = stats.treasuries['Alpha']?.toLocaleString() || '0';
+            document.getElementById('betaTreasury').textContent = stats.treasuries['Beta']?.toLocaleString() || '0';
+            document.getElementById('gammaTreasury').textContent = stats.treasuries['Gamma']?.toLocaleString() || '0';
+        }
 
         function updateChatLog() {
             const messages = engine.getMessages(30);
@@ -230,6 +331,9 @@
 
             // Update chat log
             updateChatLog();
+
+            // Update token market
+            updateTokenMarket();
         }
 
         // Game loop - one tick every second
