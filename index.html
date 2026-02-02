@@ -174,9 +174,67 @@
         .trade-entry:last-child {
             border-bottom: none;
         }
+        #notifications {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        .notification {
+            background: rgba(15, 15, 26, 0.95);
+            border: 1px solid #333;
+            border-left: 4px solid #00ff88;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            animation: slideIn 0.3s ease-out;
+            backdrop-filter: blur(10px);
+        }
+        .notification.combat {
+            border-left-color: #ff6b6b;
+        }
+        .notification.trade {
+            border-left-color: #4ecdc4;
+        }
+        .notification.diplomacy {
+            border-left-color: #ffe66d;
+        }
+        .notification.levelup {
+            border-left-color: #00ff88;
+        }
+        .notification.death {
+            border-left-color: #ff0000;
+        }
+        .notification-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .notification-content {
+            font-size: 12px;
+            color: #ccc;
+        }
+        .notification-time {
+            font-size: 10px;
+            color: #666;
+            margin-top: 4px;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
     </style>
 </head>
 <body>
+    <div id="notifications"></div>
+
     <div id="container">
         <h1>🦞 CLAWCIV - AI Civilization Simulation</h1>
 
@@ -285,6 +343,81 @@
         let lastMessageCount = 0;
         let lastMarketUpdate = 0;
         let lastTradeCount = 0;
+        let processedMessages = new Set();
+        const notifications = [];
+
+        // Notification system
+        function showNotification(type, title, content, tribe) {
+            const notification = {
+                id: Date.now() + Math.random(),
+                type,
+                title,
+                content,
+                tribe,
+                time: Date.now()
+            };
+
+            notifications.unshift(notification);
+
+            // Keep only last 20 notifications
+            if (notifications.length > 20) {
+                notifications.pop();
+            }
+
+            renderNotifications();
+
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                const index = notifications.findIndex(n => n.id === notification.id);
+                if (index > -1) {
+                    notifications.splice(index, 1);
+                    renderNotifications();
+                }
+            }, 10000);
+        }
+
+        function renderNotifications() {
+            const container = document.getElementById('notifications');
+            container.innerHTML = '';
+
+            notifications.forEach(notification => {
+                const el = document.createElement('div');
+                el.className = `notification ${notification.type} tribe-${notification.tribe || ''}`;
+                el.innerHTML = `
+                    <div class="notification-title">${notification.title}</div>
+                    <div class="notification-content">${notification.content}</div>
+                    <div class="notification-time">${new Date(notification.time).toLocaleTimeString()}</div>
+                `;
+                container.appendChild(el);
+            });
+        }
+
+        function checkImportantEvents() {
+            const messages = engine.getMessages(100);
+
+            for (const msg of messages) {
+                if (processedMessages.has(msg.id)) continue;
+                processedMessages.add(msg.id);
+
+                // Check for important events
+                if (msg.type === 'combat' && msg.content.includes('fallen')) {
+                    showNotification('death', '⚰️ Agent Death', msg.content, msg.tribe);
+                } else if (msg.type === 'combat' && msg.content.includes('Victory')) {
+                    showNotification('combat', '⚔️ Combat Victory', msg.content, msg.tribe);
+                } else if (msg.type === 'diplomacy' && msg.content.includes('alliance')) {
+                    showNotification('diplomacy', '🤝 Alliance Formed', msg.content, msg.tribe);
+                } else if (msg.type === 'diplomacy' && msg.content.includes('peace')) {
+                    showNotification('diplomacy', '🕊️ Peace Treaty', msg.content, msg.tribe);
+                } else if (msg.content.includes('reached Level')) {
+                    showNotification('levelup', '⬆️ Level Up', msg.content, msg.tribe);
+                } else if (msg.type === 'trade') {
+                    // Only show big trades occasionally
+                    if (Math.random() > 0.7) {
+                        showNotification('trade', '💱 Trade Executed', msg.content, msg.tribe);
+                    }
+                }
+            }
+        }
 
         // Resource prices (simulated market)
         const resourcePrices = {
@@ -507,6 +640,9 @@
 
             // Update resource market
             updateResourceMarket();
+
+            // Check for important events
+            checkImportantEvents();
         }
 
         // Game loop - one tick every second
