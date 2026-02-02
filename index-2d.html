@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClawCiv - AI Civilization Simulation (3D)</title>
+    <title>ClawCiv - AI Civilization Simulation</title>
     <style>
         body {
             margin: 0;
@@ -20,6 +20,11 @@
             text-align: center;
             color: #00ff88;
         }
+        #gameCanvas {
+            border: 2px solid #00ff88;
+            display: block;
+            margin: 20px auto;
+        }
         #stats {
             display: flex;
             justify-content: space-around;
@@ -31,63 +36,33 @@
         .stat-value {
             font-size: 24px;
             color: #00ff88;
-            font-weight: bold;
-        }
-        .stat-label {
-            font-size: 12px;
-            color: #888;
-        }
-        #gameCanvas {
-            width: 600px;
-            height: 600px;
-            margin: 20px auto;
-            position: relative;
-            border: 2px solid #00ff88;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        #canvas3d {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-        .view-toggle-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 10;
-        }
-        .toggle-btn {
-            background: rgba(0, 255, 136, 0.2);
-            border: 1px solid #00ff88;
-            color: #00ff88;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-        .toggle-btn:hover {
-            background: rgba(0, 255, 136, 0.3);
-            transform: scale(1.05);
         }
         #logs {
             background: #0f0f1a;
             padding: 15px;
             border: 1px solid #333;
-            max-height: 200px;
+            max-height: 250px;
             overflow-y: auto;
-            border-radius: 8px;
         }
         .log-entry {
             margin: 8px 0;
             font-size: 13px;
             line-height: 1.4;
-            padding: 8px;
-            background: rgba(26, 26, 46, 0.5);
-            border-radius: 4px;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .log-entry .agent-name {
+            font-weight: bold;
+        }
+        .log-entry .message-content {
+            color: #ccc;
+        }
+        .log-entry .timestamp {
+            color: #666;
+            font-size: 11px;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         .tribe-Alpha { color: #ff6b6b; }
         .tribe-Beta { color: #4ecdc4; }
@@ -196,6 +171,9 @@
             font-size: 12px;
             border-bottom: 1px solid #222;
         }
+        .trade-entry:last-child {
+            border-bottom: none;
+        }
         #notifications {
             position: fixed;
             top: 20px;
@@ -247,6 +225,140 @@
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        #agentPanel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 15, 26, 0.98);
+            border: 2px solid #00ff88;
+            border-radius: 12px;
+            padding: 25px;
+            min-width: 400px;
+            max-width: 500px;
+            z-index: 2000;
+            display: none;
+            box-shadow: 0 20px 60px rgba(0, 255, 136, 0.2);
+            backdrop-filter: blur(20px);
+        }
+        #agentPanel.active {
+            display: block;
+            animation: panelIn 0.3s ease-out;
+        }
+        @keyframes panelIn {
+            from { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        #agentPanel h2 {
+            margin: 0 0 15px 0;
+            color: #00ff88;
+            font-size: 22px;
+        }
+        .agent-panel-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .agent-panel-close:hover {
+            background: #ff5252;
+        }
+        .agent-panel-section {
+            margin: 15px 0;
+            padding: 12px;
+            background: rgba(26, 26, 46, 0.8);
+            border-radius: 8px;
+        }
+        .agent-panel-section h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .agent-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .agent-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 10px;
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 4px;
+        }
+        .agent-stat-label {
+            color: #888;
+            font-size: 12px;
+        }
+        .agent-stat-value {
+            color: #00ff88;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .agent-skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .skill-tag {
+            background: rgba(0, 255, 136, 0.15);
+            color: #00ff88;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .specialization-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        .agent-relations {
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .relation-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #222;
+            font-size: 12px;
+        }
+        .relation-item:last-child {
+            border-bottom: none;
+        }
+        #agentOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1999;
+            display: none;
+        }
+        #agentOverlay.active {
+            display: block;
         }
         #leaderboard {
             background: #0f0f1a;
@@ -326,114 +438,6 @@
             font-weight: bold;
             color: #00ff88;
         }
-        #agentPanel {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(15, 15, 26, 0.98);
-            border: 2px solid #00ff88;
-            border-radius: 12px;
-            padding: 25px;
-            min-width: 400px;
-            max-width: 500px;
-            z-index: 2000;
-            display: none;
-            box-shadow: 0 20px 60px rgba(0, 255, 136, 0.2);
-            backdrop-filter: blur(20px);
-        }
-        #agentPanel.active {
-            display: block;
-            animation: panelIn 0.3s ease-out;
-        }
-        @keyframes panelIn {
-            from { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
-            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-        }
-        .agent-panel-close {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: #ff6b6b;
-            color: white;
-            border: none;
-            width: 30px;
-            height: 30px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 18px;
-            font-weight: bold;
-        }
-        .agent-panel-section {
-            margin: 15px 0;
-            padding: 12px;
-            background: rgba(26, 26, 46, 0.8);
-            border-radius: 8px;
-        }
-        .agent-panel-section h3 {
-            margin: 0 0 10px 0;
-            font-size: 14px;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .agent-stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-        }
-        .agent-stat {
-            display: flex;
-            justify-content: space-between;
-            padding: 6px 10px;
-            background: rgba(0, 255, 136, 0.05);
-            border-radius: 4px;
-        }
-        .agent-stat-label {
-            color: #888;
-            font-size: 12px;
-        }
-        .agent-stat-value {
-            color: #00ff88;
-            font-weight: bold;
-            font-size: 13px;
-        }
-        .agent-skills {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-        }
-        .skill-tag {
-            background: rgba(0, 255, 136, 0.15);
-            color: #00ff88;
-            padding: 4px 10px;
-            border-radius: 15px;
-            font-size: 11px;
-            font-weight: bold;
-        }
-        .specialization-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        #agentOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            z-index: 1999;
-            display: none;
-        }
-        #agentOverlay.active {
-            display: block;
-        }
     </style>
 </head>
 <body>
@@ -495,45 +499,40 @@
 
         <div class="agent-panel-section">
             <h3>🤝 Relations</h3>
-            <div id="agentRelations"></div>
+            <div class="agent-relations" id="agentRelations"></div>
         </div>
     </div>
 
     <div id="container">
-        <h1>🦞 CLAWCIV - AI Civilization Simulation (3D)</h1>
+        <h1>🦞 CLAWCIV - AI Civilization Simulation</h1>
 
         <div id="stats">
             <div class="stat">
                 <div class="stat-value" id="day">0</div>
-                <div class="stat-label">Day</div>
+                <div>Day</div>
             </div>
             <div class="stat">
                 <div class="stat-value" id="population">150</div>
-                <div class="stat-label">Population</div>
+                <div>Population</div>
             </div>
             <div class="stat">
                 <div class="stat-value" id="alpha">50</div>
-                <div class="stat-label">Alpha</div>
+                <div>Alpha Tribe</div>
             </div>
             <div class="stat">
                 <div class="stat-value" id="beta">50</div>
-                <div class="stat-label">Beta</div>
+                <div>Beta Tribe</div>
             </div>
             <div class="stat">
                 <div class="stat-value" id="gamma">50</div>
-                <div class="stat-label">Gamma</div>
+                <div>Gamma Tribe</div>
             </div>
         </div>
 
-        <div id="gameCanvas">
-            <canvas id="canvas3d"></canvas>
-            <div class="view-toggle-btn">
-                <button onclick="toggleView()" class="toggle-btn">Switch to 2D View</button>
-            </div>
-        </div>
+        <canvas id="gameCanvas" width="600" height="600"></canvas>
 
         <div id="logs">
-            <div class="log-entry">ClawCiv 3D simulation initialized...</div>
+            <div class="log-entry">ClawCiv simulation initialized...</div>
         </div>
 
         <div id="tokenMarket">
@@ -615,39 +614,17 @@
 
     <script type="module">
         import { GameEngine } from './src/engine/Game.js';
-        import { GameRenderer3D } from './src/rendering/Renderer3D.js';
 
-        const canvas = document.getElementById('canvas3d');
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const CELL_SIZE = 60;
+
         const engine = new GameEngine();
-        const renderer = new GameRenderer3D(canvas);
-
-        let currentView = '3d';
-        let renderer2D = null;
         let lastMessageCount = 0;
         let lastMarketUpdate = 0;
         let lastTradeCount = 0;
-        let lastLeaderboardUpdate = 0;
         let processedMessages = new Set();
         const notifications = [];
-        const resourcePrices = {
-            food: { price: 2, history: [2, 2, 2, 2, 2] },
-            energy: { price: 3, history: [3, 3, 3, 3, 3] },
-            materials: { price: 5, history: [5, 5, 5, 5, 5] },
-            knowledge: { price: 8, history: [8, 8, 8, 8, 8] }
-        };
-        const tradeHistory = [];
-        let currentLeaderboardTab = 'level';
-
-        // Toggle between 2D and 3D views
-        window.toggleView = function() {
-            if (currentView === '3d') {
-                // Switch to 2D
-                location.href = 'index-2d.html';
-            } else {
-                // Switch to 3D
-                location.href = 'index.html';
-            }
-        };
 
         // Notification system
         function showNotification(type, title, content, tribe) {
@@ -662,12 +639,14 @@
 
             notifications.unshift(notification);
 
+            // Keep only last 20 notifications
             if (notifications.length > 20) {
                 notifications.pop();
             }
 
             renderNotifications();
 
+            // Auto-remove after 10 seconds
             setTimeout(() => {
                 const index = notifications.findIndex(n => n.id === notification.id);
                 if (index > -1) {
@@ -693,48 +672,52 @@
             });
         }
 
-        function updateChatLog() {
-            const messages = engine.getMessages(20);
-            const logsContainer = document.getElementById('logs');
+        function checkImportantEvents() {
+            const messages = engine.getMessages(100);
 
-            if (messages.length === lastMessageCount) return;
-            lastMessageCount = messages.length;
+            for (const msg of messages) {
+                if (processedMessages.has(msg.id)) continue;
+                processedMessages.add(msg.id);
 
-            logsContainer.innerHTML = '';
-            messages.slice().reverse().forEach(msg => {
-                const entry = document.createElement('div');
-                entry.className = `log-entry tribe-${msg.tribe}`;
-                entry.innerHTML = `
-                    <span style="color: #666;">[Day ${msg.timestamp}]</span>
-                    <strong>${msg.agentName}</strong> (${msg.tribe}): ${msg.content}
-                `;
-                logsContainer.appendChild(entry);
-            });
+                // Check for important events
+                if (msg.type === 'combat' && msg.content.includes('fallen')) {
+                    showNotification('death', '⚰️ Agent Death', msg.content, msg.tribe);
+                } else if (msg.type === 'combat' && msg.content.includes('Victory')) {
+                    showNotification('combat', '⚔️ Combat Victory', msg.content, msg.tribe);
+                } else if (msg.type === 'diplomacy' && msg.content.includes('alliance')) {
+                    showNotification('diplomacy', '🤝 Alliance Formed', msg.content, msg.tribe);
+                } else if (msg.type === 'diplomacy' && msg.content.includes('peace')) {
+                    showNotification('diplomacy', '🕊️ Peace Treaty', msg.content, msg.tribe);
+                } else if (msg.content.includes('reached Level')) {
+                    showNotification('levelup', '⬆️ Level Up', msg.content, msg.tribe);
+                } else if (msg.type === 'trade') {
+                    // Only show big trades occasionally
+                    if (Math.random() > 0.7) {
+                        showNotification('trade', '💱 Trade Executed', msg.content, msg.tribe);
+                    }
+                }
+            }
         }
 
-        function updateTokenMarket() {
-            const now = Date.now();
-            if (now - lastMarketUpdate < 5000) return;
-            lastMarketUpdate = now;
+        // Resource prices (simulated market)
+        const resourcePrices = {
+            food: { price: 2, history: [2, 2, 2, 2, 2] },
+            energy: { price: 3, history: [3, 3, 3, 3, 3] },
+            materials: { price: 5, history: [5, 5, 5, 5, 5] },
+            knowledge: { price: 8, history: [8, 8, 8, 8, 8] }
+        };
 
-            const stats = engine.getMarketStats();
-
-            document.getElementById('totalSupply').textContent = stats.totalSupply.toLocaleString();
-            document.getElementById('totalAccounts').textContent = stats.totalAccounts;
-            document.getElementById('totalTransactions').textContent = stats.totalTransactions.toLocaleString();
-
-            document.getElementById('alphaTreasury').textContent = stats.treasuries['Alpha']?.toLocaleString() || '0';
-            document.getElementById('betaTreasury').textContent = stats.treasuries['Beta']?.toLocaleString() || '0';
-            document.getElementById('gammaTreasury').textContent = stats.treasuries['Gamma']?.toLocaleString() || '0';
-        }
+        const tradeHistory = [];
 
         function updateResourceMarket() {
             const messages = engine.getMessages(50);
             const tradeMessages = messages.filter(m => m.type === 'trade');
 
+            // Only update if new trades
             if (tradeMessages.length === lastTradeCount) return;
             lastTradeCount = tradeMessages.length;
 
+            // Add new trades to history
             for (const msg of tradeMessages.slice(-5)) {
                 if (!tradeHistory.find(t => t.id === msg.id)) {
                     tradeHistory.push({
@@ -745,23 +728,27 @@
                         time: msg.timestamp
                     });
 
+                    // Keep only last 10 trades
                     if (tradeHistory.length > 10) {
                         tradeHistory.shift();
                     }
 
+                    // Simulate price changes based on trades
                     const resources = ['food', 'energy', 'materials', 'knowledge'];
                     const randomResource = resources[Math.floor(Math.random() * resources.length)];
-                    const change = (Math.random() - 0.5) * 0.4;
+                    const change = (Math.random() - 0.5) * 0.4; // -0.2 to +0.2
 
                     resourcePrices[randomResource].price = Math.max(1, Math.round(
                         (resourcePrices[randomResource].price + change) * 10
                     ) / 10);
 
+                    // Update history
                     resourcePrices[randomResource].history.shift();
                     resourcePrices[randomResource].history.push(resourcePrices[randomResource].price);
                 }
             }
 
+            // Update UI
             for (const [resource, data] of Object.entries(resourcePrices)) {
                 const priceEl = document.getElementById(`${resource}Price`);
                 const changeEl = document.getElementById(`${resource}Change`);
@@ -777,6 +764,7 @@
                 }
             }
 
+            // Update trade history
             const tradeHistoryEl = document.getElementById('tradeHistory');
             if (tradeHistory.length > 0) {
                 tradeHistoryEl.innerHTML = '';
@@ -793,9 +781,29 @@
             }
         }
 
+        function updateTokenMarket() {
+            const now = Date.now();
+            if (now - lastMarketUpdate < 5000) return; // Update every 5 seconds
+            lastMarketUpdate = now;
+
+            const stats = engine.getMarketStats();
+
+            document.getElementById('totalSupply').textContent = stats.totalSupply.toLocaleString();
+            document.getElementById('totalAccounts').textContent = stats.totalAccounts;
+            document.getElementById('totalTransactions').textContent = stats.totalTransactions.toLocaleString();
+
+            document.getElementById('alphaTreasury').textContent = stats.treasuries['Alpha']?.toLocaleString() || '0';
+            document.getElementById('betaTreasury').textContent = stats.treasuries['Beta']?.toLocaleString() || '0';
+            document.getElementById('gammaTreasury').textContent = stats.treasuries['Gamma']?.toLocaleString() || '0';
+        }
+
+        // Leaderboard system
+        let currentLeaderboardTab = 'level';
+        let lastLeaderboardUpdate = 0;
+
         function updateLeaderboard() {
             const now = Date.now();
-            if (now - lastLeaderboardUpdate < 3000) return;
+            if (now - lastLeaderboardUpdate < 3000) return; // Update every 3 seconds
             lastLeaderboardUpdate = now;
 
             const agents = engine.getAliveAgents();
@@ -869,36 +877,112 @@
             });
         });
 
-        function checkImportantEvents() {
-            const messages = engine.getMessages(100);
+        function updateChatLog() {
+            const messages = engine.getMessages(30);
+            const logsContainer = document.getElementById('logs');
 
-            for (const msg of messages) {
-                if (processedMessages.has(msg.id)) continue;
-                processedMessages.add(msg.id);
+            // Only update if there are new messages
+            if (messages.length === lastMessageCount) return;
+            lastMessageCount = messages.length;
 
-                if (msg.type === 'combat' && msg.content.includes('fallen')) {
-                    showNotification('death', '⚰️ Agent Death', msg.content, msg.tribe);
-                } else if (msg.type === 'combat' && msg.content.includes('Victory')) {
-                    showNotification('combat', '⚔️ Combat Victory', msg.content, msg.tribe);
-                } else if (msg.type === 'diplomacy' && msg.content.includes('alliance')) {
-                    showNotification('diplomacy', '🤝 Alliance Formed', msg.content, msg.tribe);
-                } else if (msg.type === 'diplomacy' && msg.content.includes('peace')) {
-                    showNotification('diplomacy', '🕊️ Peace Treaty', msg.content, msg.tribe);
-                } else if (msg.content.includes('reached Level')) {
-                    showNotification('levelup', '⬆️ Level Up', msg.content, msg.tribe);
-                } else if (msg.type === 'trade') {
-                    if (Math.random() > 0.7) {
-                        showNotification('trade', '💱 Trade Executed', msg.content, msg.tribe);
-                    }
-                }
-            }
+            logsContainer.innerHTML = '';
+            messages.reverse().forEach(msg => {
+                const entry = document.createElement('div');
+                entry.className = `log-entry tribe-${msg.tribe}`;
+                entry.innerHTML = `
+                    <span class="timestamp">[Day ${msg.timestamp}]</span>
+                    <span class="agent-name">${msg.agentName}</span>
+                    <span class="tribe-badge">(${msg.tribe})</span>:
+                    <span class="message-content">${msg.content}</span>
+                `;
+                logsContainer.appendChild(entry);
+            });
         }
 
-        function gameLoop() {
-            engine.tick();
+        function render() {
             const state = engine.getState();
-            renderer.update(state);
-            renderer.render();
+
+            // Clear canvas
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid
+            ctx.strokeStyle = '#333';
+            for (let i = 0; i <= 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, canvas.height);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(canvas.width, i * CELL_SIZE);
+                ctx.stroke();
+            }
+
+            // Draw agents
+            for (const agent of state.agents) {
+                if (!agent.alive) continue;
+
+                const colors = {
+                    'Alpha': '#ff6b6b',
+                    'Beta': '#4ecdc4',
+                    'Gamma': '#ffe66d'
+                };
+
+                const x = agent.x * CELL_SIZE + CELL_SIZE / 2;
+                const y = agent.y * CELL_SIZE + CELL_SIZE / 2;
+
+                // Draw agent
+                ctx.fillStyle = colors[agent.tribe];
+                ctx.beginPath();
+                ctx.arc(x, y, 10, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw speech bubble if agent has message
+                if (agent.currentMessage) {
+                    const bubbleWidth = Math.min(ctx.measureText(agent.currentMessage).width + 16, 120);
+                    const bubbleHeight = 24;
+                    const bubbleX = x - bubbleWidth / 2;
+                    const bubbleY = y - 35;
+
+                    // Bubble background
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                    ctx.strokeStyle = colors[agent.tribe];
+                    ctx.lineWidth = 2;
+
+                    // Rounded rectangle
+                    const radius = 6;
+                    ctx.beginPath();
+                    ctx.roundRect(bubbleX, bubbleY, bubbleWidth, bubbleHeight, radius);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Triangle pointer
+                    ctx.beginPath();
+                    ctx.moveTo(x, bubbleY + bubbleHeight);
+                    ctx.lineTo(x - 6, bubbleY + bubbleHeight + 6);
+                    ctx.lineTo(x + 6, bubbleY + bubbleHeight);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Text
+                    ctx.fillStyle = '#1a1a2e';
+                    ctx.font = '11px "Courier New", monospace';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    // Truncate if too long
+                    let message = agent.currentMessage;
+                    if (ctx.measureText(message).width > bubbleWidth - 8) {
+                        const avgCharWidth = ctx.measureText(message).width / message.length;
+                        const maxChars = Math.floor((bubbleWidth - 8) / avgCharWidth);
+                        message = message.substring(0, maxChars - 2) + '..';
+                    }
+                    ctx.fillText(message, x, bubbleY + bubbleHeight / 2);
+                }
+            }
 
             // Update stats
             document.getElementById('day').textContent = state.day;
@@ -908,34 +992,137 @@
             document.getElementById('beta').textContent = alive.filter(a => a.tribe === 'Beta').length;
             document.getElementById('gamma').textContent = alive.filter(a => a.tribe === 'Gamma').length;
 
+            // Update chat log
             updateChatLog();
+
+            // Update token market
             updateTokenMarket();
+
+            // Update resource market
             updateResourceMarket();
+
+            // Check for important events
             checkImportantEvents();
+
+            // Update leaderboard
             updateLeaderboard();
         }
 
-        // Game loop - one tick every 3 seconds
-        setInterval(gameLoop, 3000);
+        // Agent panel system
+        let selectedAgent = null;
 
-        // Render loop (smooth 60fps)
-        function animate() {
-            requestAnimationFrame(animate);
-            renderer.render();
+        function openAgentPanel(agent) {
+            selectedAgent = agent;
+
+            // Update panel content
+            document.getElementById('agentPanelName').textContent = agent.name;
+            document.getElementById('agentPanelName').className = `tribe-${agent.tribe}`;
+
+            const specializationDisplay = agent.specialization === 'none' ? 'None' :
+                agent.specialization.charAt(0).toUpperCase() + agent.specialization.slice(1);
+            document.getElementById('agentPanelSpecialization').textContent = specializationDisplay;
+
+            // Stats
+            document.getElementById('agentLevel').textContent = agent.level || 1;
+            document.getElementById('agentTribe').textContent = agent.tribe;
+            document.getElementById('agentTribe').className = `agent-stat-value tribe-${agent.tribe}`;
+            document.getElementById('agentXP').textContent = agent.experience || 0;
+            document.getElementById('agentTokens').textContent = engine.getAgentBalance(agent.id);
+
+            // Resources
+            document.getElementById('agentFood').textContent = Math.round(agent.resources.food);
+            document.getElementById('agentEnergy').textContent = Math.round(agent.resources.energy);
+            document.getElementById('agentMaterials').textContent = Math.round(agent.resources.materials);
+            document.getElementById('agentKnowledge').textContent = Math.round(agent.resources.knowledge);
+
+            // Skills
+            const skillsContainer = document.getElementById('agentSkills');
+            skillsContainer.innerHTML = '';
+            for (const skill of agent.skills) {
+                const tag = document.createElement('span');
+                tag.className = 'skill-tag';
+                tag.textContent = skill.charAt(0).toUpperCase() + skill.slice(1);
+                skillsContainer.appendChild(tag);
+            }
+
+            // Relations
+            const relationsContainer = document.getElementById('agentRelations');
+            relationsContainer.innerHTML = '';
+
+            if (agent.alliances.size > 0 || agent.enemies.size > 0) {
+                // Show allies
+                for (const allyId of agent.alliances) {
+                    const ally = engine.getState().agents.find(a => a.id === allyId);
+                    if (ally && ally.alive) {
+                        const item = document.createElement('div');
+                        item.className = 'relation-item';
+                        item.innerHTML = `
+                            <span class="tribe-${ally.tribe}">${ally.name}</span>
+                            <span style="color: #4ecdc4;">🤝 Ally</span>
+                        `;
+                        relationsContainer.appendChild(item);
+                    }
+                }
+
+                // Show enemies
+                for (const enemyId of agent.enemies) {
+                    const enemy = engine.getState().agents.find(a => a.id === enemyId);
+                    if (enemy && enemy.alive) {
+                        const item = document.createElement('div');
+                        item.className = 'relation-item';
+                        item.innerHTML = `
+                            <span class="tribe-${enemy.tribe}">${enemy.name}</span>
+                            <span style="color: #ff6b6b;">⚔️ Enemy</span>
+                        `;
+                        relationsContainer.appendChild(item);
+                    }
+                }
+            } else {
+                relationsContainer.innerHTML = '<div style="color: #666; font-size: 12px;">No relations yet</div>';
+            }
+
+            // Show panel
+            document.getElementById('agentOverlay').classList.add('active');
+            document.getElementById('agentPanel').classList.add('active');
         }
-        animate();
 
-        // Handle resize
-        window.addEventListener('resize', () => {
-            const container = document.getElementById('gameCanvas');
-            const canvas = document.getElementById('canvas3d');
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-            renderer.resize(canvas.width, canvas.height);
+        function closeAgentPanel() {
+            selectedAgent = null;
+            document.getElementById('agentOverlay').classList.remove('active');
+            document.getElementById('agentPanel').classList.remove('active');
+        }
+
+        // Canvas click handler
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+
+            const gridX = Math.floor(clickX / CELL_SIZE);
+            const gridY = Math.floor(clickY / CELL_SIZE);
+
+            const state = engine.getState();
+            const clickedAgent = state.agents.find(a =>
+                a.alive &&
+                a.x === gridX &&
+                a.y === gridY
+            );
+
+            if (clickedAgent) {
+                openAgentPanel(clickedAgent);
+            }
         });
 
-        // Initial render
-        gameLoop();
+        // Close panel on overlay click
+        document.getElementById('agentOverlay').addEventListener('click', closeAgentPanel);
+
+        // Game loop - one tick every 3 seconds (slower, more watchable)
+        setInterval(() => {
+            engine.tick();
+            render();
+        }, 3000);
+
+        render();
     </script>
 </body>
 </html>
