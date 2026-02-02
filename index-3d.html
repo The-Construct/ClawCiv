@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClawCiv 3D - AI Civilization Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1a2e;
+            font-family: 'Courier New', monospace;
+            color: #eee;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 70vh;
+            position: relative;
+        }
+        #gameCanvas {
+            display: block;
+        }
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+        }
+        #stats {
+            display: flex;
+            gap: 20px;
+            background: rgba(15, 15, 26, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #00ff88;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            color: #00ff88;
+            font-weight: bold;
+        }
+        .stat-label {
+            font-size: 11px;
+            color: #888;
+            text-transform: uppercase;
+        }
+        #dashboard {
+            height: 30vh;
+            overflow-y: auto;
+            background: #0f0f1a;
+            padding: 20px;
+            border-top: 2px solid #00ff88;
+        }
+        #dashboard h2 {
+            color: #00ff88;
+            margin-top: 0;
+        }
+        #logs {
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 8px;
+            margin: 4px 0;
+            background: rgba(26, 26, 46, 0.5);
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .tribe-Alpha { color: #ff6b6b; }
+        .tribe-Beta { color: #4ecdc4; }
+        .tribe-Gamma { color: #ffe66d; }
+        .view-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(15, 15, 26, 0.9);
+            padding: 10px 20px;
+            border: 1px solid #00ff88;
+            border-radius: 8px;
+            color: #00ff88;
+            cursor: pointer;
+            pointer-events: all;
+        }
+        .view-toggle:hover {
+            background: rgba(0, 255, 136, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="ui-overlay">
+            <div id="stats">
+                <div class="stat">
+                    <div class="stat-value" id="day">0</div>
+                    <div class="stat-label">Day</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="population">150</div>
+                    <div class="stat-label">Population</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="alpha">50</div>
+                    <div class="stat-label">Alpha</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="beta">50</div>
+                    <div class="stat-label">Beta</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="gamma">50</div>
+                    <div class="stat-label">Gamma</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="view-toggle" onclick="location.href='index.html'">
+            ← Back to 2D View
+        </div>
+    </div>
+
+    <div id="dashboard">
+        <h2>📜 Agent Activity</h2>
+        <div id="logs">
+            <div class="log-entry">ClawCiv 3D simulation initialized...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GameEngine } from './src/engine/Game.js';
+        import { GameRenderer3D } from './src/rendering/Renderer3D.js';
+
+        const canvas = document.getElementById('gameCanvas');
+        const container = document.getElementById('canvas-container');
+
+        // Set canvas size
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+
+        const engine = new GameEngine();
+        const renderer = new GameRenderer3D(canvas);
+
+        let lastMessageCount = 0;
+
+        function updateUI() {
+            const state = engine.getState();
+
+            // Update stats
+            document.getElementById('day').textContent = state.day;
+            const alive = engine.getAliveAgents();
+            document.getElementById('population').textContent = alive.length;
+            document.getElementById('alpha').textContent = alive.filter(a => a.tribe === 'Alpha').length;
+            document.getElementById('beta').textContent = alive.filter(a => a.tribe === 'Beta').length;
+            document.getElementById('gamma').textContent = alive.filter(a => a.tribe === 'Gamma').length;
+
+            // Update logs
+            const messages = engine.getMessages(20);
+            if (messages.length !== lastMessageCount) {
+                lastMessageCount = messages.length;
+                const logsContainer = document.getElementById('logs');
+                logsContainer.innerHTML = '';
+                messages.slice().reverse().forEach(msg => {
+                    const entry = document.createElement('div');
+                    entry.className = `log-entry tribe-${msg.tribe}`;
+                    entry.innerHTML = `
+                        <span style="color: #666;">[Day ${msg.timestamp}]</span>
+                        <strong>${msg.agentName}</strong> (${msg.tribe}): ${msg.content}
+                    `;
+                    logsContainer.appendChild(entry);
+                });
+            }
+        }
+
+        function gameLoop() {
+            engine.tick();
+            const state = engine.getState();
+            renderer.update(state);
+            renderer.render();
+            updateUI();
+        }
+
+        // Game loop - one tick every 3 seconds
+        setInterval(gameLoop, 3000);
+
+        // Render loop (smooth animation)
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render();
+        }
+        animate();
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            renderer.resize(canvas.width, canvas.height);
+        });
+
+        // Initial render
+        gameLoop();
+    </script>
+</body>
+</html>
