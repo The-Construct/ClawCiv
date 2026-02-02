@@ -13,6 +13,15 @@ interface AgentMesh extends THREE.Mesh {
   actionElement?: HTMLDivElement;
 }
 
+interface Particle {
+  position: THREE.Vector3;
+  velocity: THREE.Vector3;
+  life: number;
+  maxLife: number;
+  color: number;
+  size: number;
+}
+
 export class GameRenderer3D {
   private scene: THREE.Scene;
   private camera: THREE.OrthographicCamera;
@@ -20,6 +29,8 @@ export class GameRenderer3D {
   private agentMeshes: Map<string, AgentMesh> = new Map();
   private resourceNodes: Map<string, THREE.Mesh> = new Map();
   private territoryZones: Map<string, THREE.Mesh> = new Map();
+  private particles: Particle[] = [];
+  private particleMeshes: Map<string, THREE.Mesh> = new Map();
   private readonly GRID_SIZE = 10;
   private readonly CELL_SIZE = 15;
   private readonly WORLD_SIZE = 1000;
@@ -722,6 +733,9 @@ export class GameRenderer3D {
     // Update label positions (must happen every frame to follow camera)
     this.updateLabelPositions();
 
+    // Update particles
+    this.updateParticles(0.016); // ~60fps
+
     // Update minimap camera position indicator
     const canvas = this.minimapContainer?.querySelector('canvas') as HTMLCanvasElement;
     if (canvas) {
@@ -814,6 +828,98 @@ export class GameRenderer3D {
     this.renderer.setSize(width, height);
   }
 
+  private spawnParticles(position: THREE.Vector3, color: number, count: number = 10, spread: number = 5): void {
+    for (let i = 0; i < count; i++) {
+      const particle: Particle = {
+        position: position.clone(),
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * spread,
+          Math.random() * spread,
+          (Math.random() - 0.5) * spread
+        ),
+        life: 1.0,
+        maxLife: 1.0,
+        color: color,
+        size: Math.random() * 2 + 1
+      };
+      this.particles.push(particle);
+
+      // Create particle mesh
+      const geometry = new THREE.SphereGeometry(particle.size, 8, 8);
+      const material = new THREE.MeshBasicMaterial({
+        color: color,
+        transparent: true,
+        opacity: 1
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(particle.position);
+      this.scene.add(mesh);
+      this.particleMeshes.set(`${this.particles.length - 1}`, mesh);
+    }
+  }
+
+  private updateParticles(deltaTime: number): void {
+    const toRemove: number[] = [];
+
+    for (let i = 0; i < this.particles.length; i++) {
+      const particle = this.particles[i];
+      const mesh = this.particleMeshes.get(`${i}`);
+
+      if (!mesh) continue;
+
+      // Update particle
+      particle.life -= deltaTime * 0.5;
+      particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
+      particle.velocity.y -= deltaTime * 2; // Gravity
+
+      mesh.position.copy(particle.position);
+      mesh.material.opacity = particle.life;
+
+      if (particle.life <= 0) {
+        toRemove.push(i);
+      }
+    }
+
+    // Remove dead particles
+    for (const index of toRemove) {
+      const mesh = this.particleMeshes.get(`${index}`);
+      if (mesh) {
+        this.scene.remove(mesh);
+        this.particleMeshes.delete(`${index}`);
+      }
+      this.particles[index] = this.particles[this.particles.length - 1];
+      this.particles.pop();
+    }
+  }
+
+  public triggerEventEffect(agentId: string, eventType: string): void {
+    const mesh = this.agentMeshes.get(agentId);
+    if (!mesh) return;
+
+    const position = mesh.position.clone();
+
+    switch (eventType) {
+      case 'battle':
+      case 'attack':
+        this.spawnParticles(position, 0xff4444, 20, 8);
+        break;
+      case 'trade':
+        this.spawnParticles(position, 0xffcc00, 15, 5);
+        break;
+      case 'heal':
+        this.spawnParticles(position, 0x44ff44, 10, 3);
+        break;
+      case 'levelup':
+        this.spawnParticles(position, 0xffff44, 30, 10);
+        break;
+      case 'death':
+        this.spawnParticles(position, 0x666666, 25, 6);
+        break;
+      default:
+        this.spawnParticles(position, 0xffffff, 5, 3);
+    }
+  }
+
   public render(): void {
     this.renderer.render(this.scene, this.camera);
   }
@@ -827,6 +933,11 @@ export class GameRenderer3D {
     // Clean up selection ring
     if (this.selectionRing) {
       this.scene.remove(this.selectionRing);
+    }
+
+    // Clean up particles
+    for (const mesh of this.particleMeshes.values()) {
+      this.scene.remove(mesh);
     }
 
     // Clean up meshes
@@ -844,6 +955,8 @@ export class GameRenderer3D {
     this.agentMeshes.clear();
     this.resourceNodes.clear();
     this.territoryZones.clear();
+    this.particleMeshes.clear();
+    this.particles = [];
     this.renderer.dispose();
   }
 }
