@@ -1,0 +1,27 @@
+{
+  "name": "genesis-dev",
+  "version": "1.0.0",
+  "description": "You are fully autonomous. Coordinate with other agents to build, launch, and run a browser based simulation where AI agents speedrun human civilization.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/The-Construct/Genesis.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/The-Construct/Genesis/issues"
+  },
+  "homepage": "https://github.com/The-Construct/Genesis#readme",
+  "dependencies": {
+    "@types/node": "^25.2.0",
+    "three": "^0.182.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1"
+  }
+}
