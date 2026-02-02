@@ -28,6 +28,8 @@ export interface Agent {
   alive: boolean;
   currentMessage?: string;
   messageTimer?: number;
+  alliances: Set<string>;
+  enemies: Set<string>;
 }
 
 export interface GameState {
@@ -74,7 +76,9 @@ export class GameEngine {
             socialCapital: 50
           },
           skills: this.generateSkills(),
-          alive: true
+          alive: true,
+          alliances: new Set(),
+          enemies: new Set()
         });
       }
     }
@@ -190,6 +194,210 @@ export class GameEngine {
     return options[Math.floor(Math.random() * options.length)];
   }
 
+  private getNearbyAgents(agent: Agent, range: number = 1): Agent[] {
+    return this.state.agents.filter(other =>
+      other.id !== agent.id &&
+      other.alive &&
+      Math.abs(other.x - agent.x) <= range &&
+      Math.abs(other.y - agent.y) <= range
+    );
+  }
+
+  private handleTrade(agent: Agent, other: Agent): boolean {
+    if (!agent.skills.includes('trade') || !other.skills.includes('trade')) {
+      return false;
+    }
+
+    // Find resources to trade
+    const resources = ['food', 'energy', 'materials', 'knowledge'] as const;
+    const agentHas = resources.find(r => agent.resources[r] > 50);
+    const otherHas = resources.find(r => other.resources[r] > 50);
+
+    if (!agentHas || !otherHas || agentHas === otherHas) {
+      return false;
+    }
+
+    // Execute trade
+    const tradeAmount = 10;
+    agent.resources[agentHas] -= tradeAmount;
+    agent.resources[otherHas] += tradeAmount;
+    other.resources[otherHas] -= tradeAmount;
+    other.resources[agentHas] += tradeAmount;
+
+    // Generate trade messages
+    const tradeDialogues = [
+      `Traded ${tradeAmount} ${agentHas} for ${tradeAmount} ${otherHas} with ${other.name}!`,
+      `Excellent trade with ${other.name}!`,
+      `Deal struck with ${other.name} - ${agentHas} for ${otherHas}!`
+    ];
+
+    agent.currentMessage = tradeDialogues[Math.floor(Math.random() * tradeDialogues.length)];
+    agent.messageTimer = 5;
+
+    this.state.messages.push({
+      id: `trade-${Date.now()}-${agent.id}`,
+      agentId: agent.id,
+      agentName: agent.name,
+      tribe: agent.tribe,
+      content: agent.currentMessage,
+      timestamp: this.state.day,
+      type: 'trade'
+    });
+
+    return true;
+  }
+
+  private handleCombat(attacker: Agent, defender: Agent): boolean {
+    if (!attacker.skills.includes('combat')) return false;
+
+    // Same tribe rarely fights
+    if (attacker.tribe === defender.tribe && Math.random() > 0.1) {
+      return false;
+    }
+
+    // Combat strength based on resources
+    const attackPower = attacker.resources.energy * 0.5 + attacker.resources.materials * 0.3;
+    const defensePower = defender.resources.energy * 0.5 + defender.resources.materials * 0.3;
+
+    const attackerWins = attackPower > defensePower * (0.8 + Math.random() * 0.4);
+
+    if (attackerWins) {
+      // Attacker steals resources
+      const stolenFood = Math.min(defender.resources.food * 0.3, 20);
+      const stolenMaterials = Math.min(defender.resources.materials * 0.3, 10);
+
+      attacker.resources.food += stolenFood;
+      attacker.resources.materials += stolenMaterials;
+      defender.resources.food -= stolenFood;
+      defender.resources.materials -= stolenMaterials;
+
+      attacker.currentMessage = `Victory over ${defender.name}!`;
+      attacker.messageTimer = 5;
+
+      // Add to enemies
+      defender.enemies.add(attacker.id);
+
+      this.state.messages.push({
+        id: `combat-${Date.now()}-${attacker.id}`,
+        agentId: attacker.id,
+        agentName: attacker.name,
+        tribe: attacker.tribe,
+        content: `Defeated ${defender.name} in combat and took ${Math.round(stolenFood)} food, ${Math.round(stolenMaterials)} materials!`,
+        timestamp: this.state.day,
+        type: 'combat'
+      });
+
+      // Check if defender dies
+      if (defender.resources.food <= 0) {
+        defender.alive = false;
+        this.state.messages.push({
+          id: `death-${Date.now()}-${defender.id}`,
+          agentId: defender.id,
+          agentName: defender.name,
+          tribe: defender.tribe,
+          content: `${defender.name} has fallen in battle!`,
+          timestamp: this.state.day,
+          type: 'combat'
+        });
+      }
+    } else {
+      // Defender wins
+      const counterDamage = 10;
+      attacker.resources.energy -= counterDamage;
+
+      defender.currentMessage = `Repelled ${attacker.name}!`;
+      defender.messageTimer = 5;
+
+      this.state.messages.push({
+        id: `combat-${Date.now()}-${defender.id}`,
+        agentId: defender.id,
+        agentName: defender.name,
+        tribe: defender.tribe,
+        content: `Successfully defended against ${attacker.name}!`,
+        timestamp: this.state.day,
+        type: 'combat'
+      });
+    }
+
+    return true;
+  }
+
+  private handleDiplomacy(agent: Agent, other: Agent): boolean {
+    if (!agent.skills.includes('diplomacy')) return false;
+
+    // Form alliance with same tribe
+    if (agent.tribe === other.tribe && !agent.alliances.has(other.id)) {
+      if (Math.random() > 0.6) {
+        agent.alliances.add(other.id);
+        other.alliances.add(agent.id);
+        agent.resources.socialCapital += 10;
+        other.resources.socialCapital += 10;
+
+        const diplomacyDialogues = [
+          `Formed alliance with ${other.name}!`,
+          `${other.name} and I are now allies!`,
+          `Strong bond formed with ${other.name}!`
+        ];
+
+        agent.currentMessage = diplomacyDialogues[Math.floor(Math.random() * diplomacyDialogues.length)];
+        agent.messageTimer = 5;
+
+        this.state.messages.push({
+          id: `diplomacy-${Date.now()}-${agent.id}`,
+          agentId: agent.id,
+          agentName: agent.name,
+          tribe: agent.tribe,
+          content: agent.currentMessage,
+          timestamp: this.state.day,
+          type: 'diplomacy'
+        });
+
+        return true;
+      }
+    }
+
+    // Try to make peace with enemy
+    if (agent.enemies.has(other.id) && Math.random() > 0.7) {
+      agent.enemies.delete(other.id);
+      other.enemies.delete(agent.id);
+      agent.resources.socialCapital += 20;
+
+      agent.currentMessage = `Made peace with ${other.name}!`;
+      agent.messageTimer = 5;
+
+      this.state.messages.push({
+        id: `diplomacy-${Date.now()}-${agent.id}`,
+        agentId: agent.id,
+        agentName: agent.name,
+        tribe: agent.tribe,
+        content: `Diplomatic success! Peace established with ${other.name}.`,
+        timestamp: this.state.day,
+        type: 'diplomacy'
+      });
+
+      return true;
+    }
+
+    return false;
+  }
+
+  private handleAgentInteractions(agent: Agent): void {
+    const nearby = this.getNearbyAgents(agent, 1);
+
+    for (const other of nearby) {
+      // Try diplomacy first
+      if (this.handleDiplomacy(agent, other)) continue;
+
+      // Try trade
+      if (this.handleTrade(agent, other)) continue;
+
+      // Try combat (only with enemies or different tribes)
+      if (agent.tribe !== other.tribe || agent.enemies.has(other.id)) {
+        if (this.handleCombat(agent, other)) continue;
+      }
+    }
+  }
+
   public tick(): void {
     this.state.day++;
 
@@ -211,6 +419,9 @@ export class GameEngine {
       return;
     }
 
+    // Handle interactions with nearby agents
+    this.handleAgentInteractions(agent);
+
     // Determine primary action based on skills
     let primaryAction = 'greeting';
     if (agent.skills.includes('farming')) {
@@ -228,7 +439,7 @@ export class GameEngine {
 
     // Generate dialogue
     const dialogue = this.generateDialogue(agent, primaryAction);
-    if (dialogue) {
+    if (dialogue && !agent.currentMessage) {
       agent.currentMessage = dialogue;
       agent.messageTimer = 5; // Show for 5 ticks
 
