@@ -71,12 +71,12 @@ export class GameEngine {
 
     for (const tribe of this.TRIBES) {
       for (let i = 0; i < 50; i++) {
-        const agentId = `agent-${agentId++}`;
+        const id = `agent-${agentId++}`;
         const skills = this.generateSkills();
         const specialization = this.determineSpecialization(skills);
 
         agents.push({
-          id: agentId,
+          id: id,
           name: this.generateAgentName(tribe),
           tribe,
           x: Math.floor(Math.random() * this.GRID_SIZE),
