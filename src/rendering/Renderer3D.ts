@@ -9,6 +9,8 @@ interface AgentMesh extends THREE.Mesh {
   targetPosition: THREE.Vector3;
   currentPosition: THREE.Vector3;
   bubbleElement?: HTMLDivElement;
+  nameElement?: HTMLDivElement;
+  actionElement?: HTMLDivElement;
 }
 
 export class GameRenderer3D {
@@ -22,6 +24,7 @@ export class GameRenderer3D {
   private readonly WORLD_SIZE = 1000;
   private canvas: HTMLCanvasElement;
   private bubbleContainer: HTMLDivElement;
+  private nameContainer: HTMLDivElement;
   private cameraTarget: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
   private isDragging: boolean = false;
   private lastMousePos: { x: number; y: number } = { x: 0, y: 0 };
@@ -81,8 +84,24 @@ export class GameRenderer3D {
     ground.receiveShadow = true;
     this.scene.add(ground);
 
-    // Create bubble container overlay
+    // Create overlay containers
     this.createBubbleContainer();
+    this.createNameContainer();
+  }
+
+  private createNameContainer(): void {
+    this.nameContainer = document.createElement('div');
+    this.nameContainer.id = 'name-container';
+    this.nameContainer.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 99;
+    `;
+    this.canvas.parentElement.appendChild(this.nameContainer);
   }
 
   private setupControls(): void {
@@ -313,6 +332,9 @@ export class GameRenderer3D {
     for (const [id, mesh] of this.agentMeshes) {
       const agent = state.agents.find(a => a.id === id);
       if (!agent || !agent.alive) {
+        // Remove DOM elements
+        if (mesh.nameElement) mesh.nameElement.remove();
+        if (mesh.actionElement) mesh.actionElement.remove();
         this.scene.remove(mesh);
         this.agentMeshes.delete(id);
       }
@@ -368,6 +390,116 @@ export class GameRenderer3D {
 
     // Update speech bubbles
     this.updateBubbles(state);
+
+    // Update name labels and action icons
+    this.updateNameLabels(state);
+  }
+
+  private updateNameLabels(state: GameState): void {
+    const containerRect = this.canvas.getBoundingClientRect();
+
+    for (const [agentId, mesh] of this.agentMeshes) {
+      const agent = state.agents.find(a => a.id === agentId);
+      if (!agent || !agent.alive) continue;
+
+      // Create name element if it doesn't exist
+      if (!mesh.nameElement) {
+        const nameEl = document.createElement('div');
+        nameEl.className = 'agent-name-label';
+        nameEl.style.cssText = `
+          position: absolute;
+          background: rgba(15, 15, 26, 0.85);
+          border: 1px solid ${this.getTribeColorHex(agent.tribe)};
+          padding: 2px 6px;
+          border-radius: 4px;
+          font-family: 'Courier New', monospace;
+          font-size: 10px;
+          font-weight: bold;
+          color: ${this.getTribeColorHex(agent.tribe)};
+          pointer-events: none;
+          white-space: nowrap;
+          z-index: 99;
+        `;
+        this.nameContainer.appendChild(nameEl);
+        mesh.nameElement = nameEl;
+      }
+
+      // Create action element if it doesn't exist
+      if (!mesh.actionElement) {
+        const actionEl = document.createElement('div');
+        actionEl.className = 'agent-action-icon';
+        actionEl.style.cssText = `
+          position: absolute;
+          font-size: 14px;
+          pointer-events: none;
+          z-index: 99;
+          text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+        `;
+        this.nameContainer.appendChild(actionEl);
+        mesh.actionElement = actionEl;
+      }
+
+      // Determine action icon based on agent state
+      const actionIcon = this.getActionIcon(agent);
+      mesh.actionElement.textContent = actionIcon;
+      mesh.actionElement.style.display = actionIcon ? 'block' : 'none';
+
+      // Project 3D position to 2D screen space
+      const namePos = mesh.position.clone();
+      namePos.y -= 8; // Below character
+      const screenPos = namePos.project(this.camera);
+
+      const x = (screenPos.x * 0.5 + 0.5) * containerRect.width;
+      const y = (screenPos.y * -0.5 + 0.5) * containerRect.height;
+
+      // Don't show if behind camera
+      if (screenPos.z > 1) {
+        mesh.nameElement.style.display = 'none';
+        mesh.actionElement.style.display = 'none';
+        continue;
+      }
+
+      mesh.nameElement.style.display = 'block';
+      mesh.nameElement.style.left = `${x}px`;
+      mesh.nameElement.style.top = `${y}px`;
+      mesh.nameElement.style.transform = 'translate(-50%, 0)';
+      mesh.nameElement.textContent = agent.name;
+
+      // Position action icon above name
+      const actionY = y - 18;
+      mesh.actionElement.style.left = `${x}px`;
+      mesh.actionElement.style.top = `${actionY}px`;
+      mesh.actionElement.style.transform = 'translate(-50%, 0)';
+    }
+  }
+
+  private getActionIcon(agent: Agent): string {
+    // Determine icon based on agent state
+    if (!agent.alive) return '💀';
+
+    // Check current message for action type
+    if (agent.currentMessage) {
+      const msg = agent.currentMessage.toLowerCase();
+      if (msg.includes('attack') || msg.includes('fight') || msg.includes('battle')) return '⚔️';
+      if (msg.includes('defend') || msg.includes('repel') || msg.includes('protect')) return '🛡️';
+      if (msg.includes('trade') || msg.includes('exchange') || msg.includes('sell')) return '💰';
+      if (msg.includes('gather') || msg.includes('collect') || msg.includes('farm')) return '🌾';
+      if (msg.includes('build') || msg.includes('construct')) return '🔨';
+      if (msg.includes('heal') || msg.includes('recover')) return '💚';
+      if (msg.includes('scout') || msg.includes('explore')) return '🔍';
+      if (msg.includes('diplomacy') || msg.includes('negotiate') || msg.includes('ally')) return '🤝';
+      if (msg.includes('research') || msg.includes('study') || msg.includes('learn')) return '📚';
+    }
+
+    // Based on resources
+    if (agent.resources.food < 10) return '🍞';
+    if (agent.resources.energy < 5) return '⚡';
+
+    // Based on level/specialization
+    if (agent.level >= 5) return '⭐';
+    if (agent.level >= 10) return '👑';
+
+    return '';
   }
 
   public animate(time: number = 0): void {
@@ -439,8 +571,14 @@ export class GameRenderer3D {
   }
 
   public dispose(): void {
-    // Clean up
+    // Clean up DOM elements
+    if (this.nameContainer) this.nameContainer.remove();
+    if (this.bubbleContainer) this.bubbleContainer.remove();
+
+    // Clean up meshes
     for (const mesh of this.agentMeshes.values()) {
+      if (mesh.nameElement) mesh.nameElement.remove();
+      if (mesh.actionElement) mesh.actionElement.remove();
       this.scene.remove(mesh);
     }
     this.agentMeshes.clear();
