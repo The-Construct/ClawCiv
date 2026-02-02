@@ -2,6 +2,7 @@
 // Autonomous AI civilization simulation
 
 import { TokenSystem } from '../economy/Token.js';
+import { TerritorySystem } from '../systems/Territory.js';
 
 export interface Message {
   id: string;
@@ -53,9 +54,11 @@ export class GameEngine {
   private readonly INITIAL_AGENTS = 150;
   private readonly TRIBES = ['Alpha', 'Beta', 'Gamma'];
   private tokenSystem: TokenSystem;
+  private territorySystem: TerritorySystem;
 
   constructor() {
     this.tokenSystem = new TokenSystem();
+    this.territorySystem = new TerritorySystem();
     this.state = this.initializeState();
   }
 
@@ -548,6 +551,11 @@ export class GameEngine {
       if (!agent.alive) continue;
       this.agentAction(agent);
     }
+
+    // Decay territories occasionally (every 10 days)
+    if (this.state.day % 10 === 0) {
+      this.territorySystem.decayTerritories();
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -632,6 +640,11 @@ export class GameEngine {
       case 2: agent.y = Math.max(0, agent.y - 1); break; // up
       case 3: agent.y = Math.min(this.GRID_SIZE - 1, agent.y + 1); break; // down
     }
+
+    // Claim territory for tribe (5% chance per move)
+    if (Math.random() < 0.05) {
+      this.territorySystem.claimTerritory(agent.x, agent.y, agent.tribe, 10);
+    }
   }
 
   public getState(): GameState {
@@ -660,5 +673,18 @@ export class GameEngine {
 
   public getMarketStats() {
     return this.tokenSystem.getMarketStats();
+  }
+
+  public getTerritorySystem() {
+    return this.territorySystem;
+  }
+
+  public getTerritoryStats() {
+    return {
+      Alpha: this.territorySystem.getTerritoryCount('Alpha'),
+      Beta: this.territorySystem.getTerritoryCount('Beta'),
+      Gamma: this.territorySystem.getTerritoryCount('Gamma'),
+      total: this.territorySystem.getAllTerritories().length
+    };
   }
 }
