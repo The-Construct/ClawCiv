@@ -2,18 +2,29 @@
 // Isometric view using Three.js
 
 import * as THREE from 'three';
-import { Agent, GameState } from '../engine/Game.js';
+import { Agent, GameState, Message } from '../engine/Game.js';
+
+interface AgentMesh extends THREE.Mesh {
+  agentData: Agent;
+  targetPosition: THREE.Vector3;
+  currentPosition: THREE.Vector3;
+  bubbleElement?: HTMLDivElement;
+}
 
 export class GameRenderer3D {
   private scene: THREE.Scene;
   private camera: THREE.OrthographicCamera;
   private renderer: THREE.WebGLRenderer;
-  private agentMeshes: Map<string, THREE.Mesh> = new Map();
+  private agentMeshes: Map<string, AgentMesh> = new Map();
   private gridHelper: THREE.GridHelper;
   private readonly GRID_SIZE = 10;
   private readonly CELL_SIZE = 10;
+  private canvas: HTMLCanvasElement;
+  private bubbleContainer: HTMLDivElement;
 
   constructor(canvas: HTMLCanvasElement) {
+    this.canvas = canvas;
+
     // Scene setup
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x1a1a2e);
@@ -65,6 +76,9 @@ export class GameRenderer3D {
     ground.position.y = -0.5;
     ground.receiveShadow = true;
     this.scene.add(ground);
+
+    // Create bubble container overlay
+    this.createBubbleContainer();
   }
 
   private createGrid(): void {
@@ -72,6 +86,107 @@ export class GameRenderer3D {
     this.gridHelper = new THREE.GridHelper(size, this.GRID_SIZE, 0x00ff88, 0x333333);
     this.gridHelper.position.y = 0;
     this.scene.add(this.gridHelper);
+  }
+
+  private createBubbleContainer(): void {
+    this.bubbleContainer = document.createElement('div');
+    this.bubbleContainer.id = 'bubble-container';
+    this.bubbleContainer.style.cssText = `
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    `;
+    this.canvas.parentElement.appendChild(this.bubbleContainer);
+  }
+
+  private createCharacterSprite(tribe: string): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d')!;
+
+    // Draw emoji character based on tribe
+    const emojis = {
+      'Alpha': '👤',
+      'Beta': '🧙',
+      'Gamma': '👽'
+    };
+
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, 64, 64);
+
+    ctx.font = '48px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Add glow effect
+    ctx.shadowColor = this.getTribeColor(tribe);
+    ctx.shadowBlur = 10;
+
+    ctx.fillText(emojis[tribe as keyof typeof emojis] || '👤', 32, 32);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = false;
+    return texture;
+  }
+
+  private updateBubbles(state: GameState): void {
+    // Clear old bubbles
+    const existingBubbles = this.bubbleContainer.querySelectorAll('.agent-bubble');
+    existingBubbles.forEach(b => b.remove());
+
+    // Create new bubbles for agents with messages
+    const containerRect = this.canvas.getBoundingClientRect();
+
+    for (const agent of state.agents) {
+      if (!agent.alive || !agent.currentMessage) continue;
+
+      const x = (agent.x - this.GRID_SIZE / 2) * this.CELL_SIZE + containerRect.left + containerRect.width / 2;
+      const y = -(agent.y - this.GRID_SIZE / 2) * this.CELL_SIZE + containerRect.top + containerRect.height / 2;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'agent-bubble';
+      bubble.style.cssText = `
+        position: absolute;
+        left: ${x}px;
+        top: ${y}px;
+        transform: translate(-50%, -120%);
+        background: rgba(255, 255, 255, 0.95);
+        border: 2px solid ${this.getTribeColorHex(agent.tribe)};
+        padding: 8px 12px;
+        border-radius: 12px;
+        font-family: 'Courier New', monospace;
+        font-size: 11px;
+        font-weight: bold;
+        color: #1a1a2e;
+        pointer-events: none;
+        white-space: nowrap;
+        z-index: 101;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        animation: bubblePop 0.3s ease-out;
+      `;
+      bubble.textContent = agent.currentMessage;
+
+      this.bubbleContainer.appendChild(bubble);
+
+      // Auto-remove after 5 seconds
+      setTimeout(() => {
+        bubble.remove();
+      }, 5000);
+    }
+  }
+
+  private getTribeColorHex(tribe: string): string {
+    const colors = {
+      'Alpha': '#ff6b6b',
+      'Beta': '#4ecdc4',
+      'Gamma': '#ffe66d'
+    };
+    return colors[tribe as keyof typeof colors] || '#ffffff';
   }
 
   public update(state: GameState): void {
@@ -91,24 +206,43 @@ export class GameRenderer3D {
       let mesh = this.agentMeshes.get(agent.id);
 
       if (!mesh) {
-        // Create new agent mesh
-        const geometry = new THREE.SphereGeometry(2, 16, 16);
-        const material = new THREE.MeshStandardMaterial({
-          color: this.getTribeColor(agent.tribe),
-          roughness: 0.3,
-          metalness: 0.2
+        // Create new agent mesh with sprite
+        const spriteTexture = this.createCharacterSprite(agent.tribe);
+        const material = new THREE.SpriteMaterial({
+          map: spriteTexture,
+          transparent: true
         });
-        mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
+        mesh = new THREE.Sprite(material) as AgentMesh;
+        mesh.agentData = agent;
+
+        // Set initial position
+        const x = (agent.x - this.GRID_SIZE / 2) * this.CELL_SIZE;
+        const z = (agent.y - this.GRID_SIZE / 2) * this.CELL_SIZE;
+        mesh.currentPosition = new THREE.Vector3(x, 3, z);
+        mesh.targetPosition = new THREE.Vector3(x, 3, z);
+        mesh.position.copy(mesh.currentPosition);
+        mesh.scale.set(8, 8, 1);
+
         this.scene.add(mesh);
         this.agentMeshes.set(agent.id, mesh);
       }
 
-      // Position agent in 3D space (isometric)
+      // Update target position
       const x = (agent.x - this.GRID_SIZE / 2) * this.CELL_SIZE;
       const z = (agent.y - this.GRID_SIZE / 2) * this.CELL_SIZE;
-      mesh.position.set(x, 2, z);
+      mesh.targetPosition.set(x, 3, z);
+      mesh.agentData = agent;
+    }
+
+    // Update speech bubbles
+    this.updateBubbles(state);
+  }
+
+  public animate(): void {
+    // Smooth interpolation for all agents
+    for (const mesh of this.agentMeshes.values()) {
+      mesh.currentPosition.lerp(mesh.targetPosition, 0.05);
+      mesh.position.copy(mesh.currentPosition);
     }
   }
 

@@ -434,6 +434,10 @@
         #agentOverlay.active {
             display: block;
         }
+        @keyframes bubblePop {
+            0% { transform: translate(-50%, -100%) scale(0); opacity: 0; }
+            100% { transform: translate(-50%, -120%) scale(1); opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -921,6 +925,7 @@
         // Render loop (smooth 60fps)
         function animate() {
             requestAnimationFrame(animate);
+            renderer.animate?.(); // Smooth agent movement
             renderer.render();
         }
         animate();
