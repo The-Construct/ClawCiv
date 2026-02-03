@@ -576,6 +576,112 @@
         .history-content {
             color: #ddd;
         }
+        #buildings {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #f59e0b;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        .tribe-build-btn {
+            flex: 1;
+            padding: 8px;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #888;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .tribe-build-btn:hover {
+            background: #2a2a3e;
+        }
+        .tribe-build-btn.active {
+            background: #f59e0b;
+            color: #1a1a2e;
+            border-color: #f59e0b;
+        }
+        .building-stats {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .building-count {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #f59e0b;
+            border: 1px solid #333;
+        }
+        .building-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .building-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            border: 1px solid #333;
+            transition: all 0.2s;
+        }
+        .building-item.constructing {
+            border-color: #fbbf24;
+            background: rgba(251, 191, 36, 0.1);
+        }
+        .building-item.complete {
+            border-color: #4ade80;
+        }
+        .building-info {
+            flex: 1;
+        }
+        .building-name {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .building-details {
+            font-size: 10px;
+            color: #888;
+        }
+        .building-progress {
+            width: 100px;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .building-progress-bar {
+            height: 100%;
+            background: #f59e0b;
+            transition: width 0.3s;
+        }
+        .build-btn {
+            padding: 6px 12px;
+            background: #f59e0b;
+            border: none;
+            border-radius: 4px;
+            color: #1a1a2e;
+            font-weight: bold;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .build-btn:hover {
+            background: #fbbf24;
+        }
+        .build-btn:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
         @keyframes bubblePop {
             0% { transform: translate(-50%, -100%) scale(0); opacity: 0; }
             100% { transform: translate(-50%, -120%) scale(1); opacity: 1; }
@@ -775,6 +881,21 @@
             </div>
             <div class="tech-list" id="techList">
                 <div style="text-align: center; color: #666; padding: 20px;">Select a tribe to view techs</div>
+            </div>
+        </div>
+
+        <div id="buildings">
+            <h2>🏗️ Buildings</h2>
+            <div class="tribe-selector">
+                <button class="tribe-build-btn active" data-tribe="Alpha">Alpha</button>
+                <button class="tribe-build-btn" data-tribe="Beta">Beta</button>
+                <button class="tribe-build-btn" data-tribe="Gamma">Gamma</button>
+            </div>
+            <div class="building-stats" id="buildingStats">
+                <div class="building-count">Buildings: 0</div>
+            </div>
+            <div class="building-list" id="buildingList">
+                <div style="text-align: center; color: #666; padding: 20px;">Select a tribe to view buildings</div>
             </div>
         </div>
     </div>
@@ -1089,6 +1210,7 @@
             checkImportantEvents();
             updateLeaderboard();
             updateTechTree();
+            updateBuildings();
         }
 
         // Tech tree state
@@ -1218,6 +1340,116 @@
                 }
 
                 techList.appendChild(div);
+            }
+        }
+
+        // Buildings state
+        let selectedTribeForBuildings = 'Alpha';
+        const buildingTypes = [
+            { type: 'farm', name: 'Farm', cost: { food: 50, materials: 30, knowledge: 0 }, benefit: '+5 food/day', tech: 'agriculture' },
+            { type: 'mine', name: 'Mine', cost: { food: 30, materials: 50, knowledge: 0 }, benefit: '+3 materials/day', tech: 'tool_making' },
+            { type: 'library', name: 'Library', cost: { food: 40, materials: 40, knowledge: 20 }, benefit: '+2 knowledge/day', tech: 'writing' },
+            { type: 'market', name: 'Market', cost: { food: 60, materials: 60, knowledge: 30 }, benefit: '+4 social/day', tech: 'trade_routes' },
+            { type: 'granary', name: 'Granary', cost: { food: 100, materials: 80, knowledge: 40 }, benefit: '+10 food/day', tech: 'irrigation' },
+            { type: 'workshop', name: 'Workshop', cost: { food: 80, materials: 100, knowledge: 50 }, benefit: '+6 materials/day', tech: 'metallurgy' },
+            { type: 'university', name: 'University', cost: { food: 100, materials: 100, knowledge: 100 }, benefit: '+8 knowledge/day', tech: 'mathematics' },
+            { type: 'temple', name: 'Temple', cost: { food: 120, materials: 80, knowledge: 60 }, benefit: '+8 social/day', tech: 'philosophy' },
+            { type: 'monument', name: 'Monument', cost: { food: 200, materials: 200, knowledge: 150 }, benefit: '+15 social/day', tech: 'architecture' },
+            { type: 'fortress', name: 'Fortress', cost: { food: 150, materials: 250, knowledge: 100 }, benefit: '+5 social/day', tech: 'engineering' },
+            { type: 'wonder', name: 'Great Wonder', cost: { food: 500, materials: 500, knowledge: 400 }, benefit: '+20 all/day', tech: 'enlightenment' }
+        ];
+
+        // Tribe building selector click handlers
+        document.querySelectorAll('.tribe-build-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tribe-build-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedTribeForBuildings = btn.dataset.tribe || 'Alpha';
+                updateBuildings();
+            });
+        });
+
+        function updateBuildings() {
+            const buildings = engine.getBuildings();
+            const tribeBuildings = buildings.filter(b => b.tribe === selectedTribeForBuildings);
+            const techTree = engine.getTechTree(selectedTribeForBuildings);
+            const researchedTechs = techTree ? techTree.getResearchedTechs().map(t => t.id) : [];
+
+            const statsEl = document.getElementById('buildingStats');
+            if (statsEl) {
+                statsEl.innerHTML = `<div class="building-count">Buildings: ${tribeBuildings.length}</div>`;
+            }
+
+            const listEl = document.getElementById('buildingList');
+            if (!listEl) return;
+
+            listEl.innerHTML = '';
+
+            // Show existing buildings
+            for (const building of tribeBuildings) {
+                const div = document.createElement('div');
+                div.className = `building-item ${building.constructionProgress >= 100 ? 'complete' : 'constructing'}`;
+                div.innerHTML = `
+                    <div class="building-info">
+                        <div class="building-name">${building.name}</div>
+                        <div class="building-details">
+                            ${building.constructionProgress >= 100 ? 'Complete' : `Under construction (${building.constructionProgress}%)`}
+                        </div>
+                    </div>
+                    <div class="building-progress">
+                        <div class="building-progress-bar" style="width: ${building.constructionProgress}%"></div>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            }
+
+            // Show available buildings to construct
+            const agents = engine.getAliveAgents();
+            const tribeAgents = agents.filter(a => a.tribe === selectedTribeForBuildings);
+            const totalResources = {
+                food: tribeAgents.reduce((sum, a) => sum + a.resources.food, 0),
+                materials: tribeAgents.reduce((sum, a) => sum + a.resources.materials, 0),
+                knowledge: tribeAgents.reduce((sum, a) => sum + (a.resources.knowledge || 0), 0)
+            };
+
+            for (const bType of buildingTypes) {
+                const hasTech = researchedTechs.includes(bType.tech);
+                const canAfford = totalResources.food >= bType.cost.food &&
+                                   totalResources.materials >= bType.cost.materials &&
+                                   totalResources.knowledge >= bType.cost.knowledge;
+                const alreadyBuilt = tribeBuildings.some(b => b.type === bType.type);
+
+                if (!hasTech || alreadyBuilt) continue;
+
+                const div = document.createElement('div');
+                div.className = 'building-item';
+                div.innerHTML = `
+                    <div class="building-info">
+                        <div class="building-name">${bType.name}</div>
+                        <div class="building-details">
+                            💰 ${bType.cost.food}🌾 | ${bType.cost.materials}🔧 | ${bType.cost.knowledge}📚
+                            <br>${bType.benefit} | Requires: ${bType.tech}
+                        </div>
+                    </div>
+                    <button class="build-btn ${!canAfford ? ':disabled' : ''}" ${!canAfford ? 'disabled' : ''}>
+                        Build
+                    </button>
+                `;
+
+                const buildBtn = div.querySelector('.build-btn');
+                if (buildBtn && canAfford) {
+                    buildBtn.addEventListener('click', () => {
+                        if (engine.startBuilding(selectedTribeForBuildings, bType.type, 0, 0)) {
+                            updateBuildings();
+                        }
+                    });
+                }
+
+                listEl.appendChild(div);
+            }
+
+            if (listEl.children.length === 0) {
+                listEl.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No buildings available. Research more technologies!</div>';
             }
         }
 
