@@ -782,6 +782,127 @@
             padding: 15px;
             font-size: 12px;
         }
+        #quests {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #8b5cf6;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        #quests h2 {
+            color: #8b5cf6;
+            margin: 0 0 15px 0;
+            font-size: 16px;
+        }
+        .quest-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .quest-item {
+            background: #1a1a2e;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #8b5cf6;
+            transition: all 0.2s;
+        }
+        .quest-item:hover {
+            background: #2a2a3e;
+        }
+        .quest-item.completed {
+            border-left-color: #00ff88;
+            opacity: 0.7;
+        }
+        .quest-item.failed {
+            border-left-color: #ff6b6b;
+            opacity: 0.5;
+        }
+        .quest-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .quest-title {
+            font-weight: bold;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .quest-difficulty {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+        .difficulty-easy {
+            background: #22c55e;
+            color: #000;
+        }
+        .difficulty-medium {
+            background: #f59e0b;
+            color: #000;
+        }
+        .difficulty-hard {
+            background: #ef4444;
+            color: #fff;
+        }
+        .quest-desc {
+            font-size: 11px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        .quest-progress {
+            background: #0f0f1a;
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+        .quest-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+            transition: width 0.3s;
+        }
+        .quest-progress-text {
+            font-size: 10px;
+            color: #888;
+            text-align: right;
+        }
+        .quest-rewards {
+            display: flex;
+            gap: 8px;
+            font-size: 10px;
+            color: #fbbf24;
+            margin-top: 6px;
+        }
+        .quest-assign-btn {
+            background: #8b5cf6;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            width: 100%;
+            margin-top: 10px;
+            transition: all 0.2s;
+        }
+        .quest-assign-btn:hover {
+            background: #a78bfa;
+        }
+        .quest-assign-btn:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        .no-quests {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -1005,6 +1126,13 @@
             <h2>🌍 Active World Events</h2>
             <div class="event-list" id="eventList">
                 <div class="no-events">No active events</div>
+            </div>
+        </div>
+
+        <div id="quests">
+            <h2>📋 Active Quests</h2>
+            <div class="quest-list" id="questList">
+                <div class="no-quests">Click on an agent to assign quests</div>
             </div>
         </div>
     </div>
@@ -1321,6 +1449,7 @@
             updateTechTree();
             updateBuildings();
             updateActiveEvents();
+            updateQuests();
         }
 
         // Tech tree state
@@ -1394,6 +1523,10 @@
 
             document.getElementById('agentOverlay').classList.add('active');
             document.getElementById('agentPanel').style.display = 'block';
+
+            // Set selected agent for quests
+            selectedAgentForQuest = agent;
+            updateQuests();
         }
 
         window.closeAgentPanel = function() {
@@ -1591,6 +1724,75 @@
                 eventListEl.appendChild(div);
             }
         }
+
+        // Quest state
+        let selectedAgentForQuest = null;
+
+        function updateQuests() {
+            const questListEl = document.getElementById('questList');
+            if (!questListEl) return;
+
+            if (!selectedAgentForQuest) {
+                questListEl.innerHTML = '<div class="no-quests">Click on an agent to assign quests</div>';
+                return;
+            }
+
+            const agentQuests = engine.getAgentQuests(selectedAgentForQuest.id);
+
+            if (agentQuests.length === 0) {
+                questListEl.innerHTML = `
+                    <div class="no-quests">
+                        ${selectedAgentForQuest.name} has no active quests.<br>
+                        <button class="quest-assign-btn" onclick="assignQuestToSelectedAgent()">Assign New Quest</button>
+                    </div>
+                `;
+                return;
+            }
+
+            questListEl.innerHTML = '';
+
+            for (const quest of agentQuests) {
+                const progressPercent = Math.min(100, (quest.progress / quest.maxProgress) * 100);
+
+                const div = document.createElement('div');
+                div.className = `quest-item ${quest.status}`;
+
+                let rewardsHTML = '';
+                if (quest.rewards.tokens) rewardsHTML += `🪙${quest.rewards.tokens} `;
+                if (quest.rewards.experience) rewardsHTML += `⭐${quest.rewards.experience} `;
+                if (quest.rewards.resources) {
+                    if (quest.rewards.resources.food) rewardsHTML += `🌾+${quest.rewards.resources.food} `;
+                    if (quest.rewards.resources.materials) rewardsHTML += `🔧+${quest.rewards.resources.materials} `;
+                    if (quest.rewards.resources.knowledge) rewardsHTML += `📚+${quest.rewards.resources.knowledge} `;
+                    if (quest.rewards.resources.socialCapital) rewardsHTML += `🤝+${quest.rewards.resources.socialCapital} `;
+                }
+
+                div.innerHTML = `
+                    <div class="quest-header">
+                        <div class="quest-title">${quest.icon} ${quest.name}</div>
+                        <div class="quest-difficulty difficulty-${quest.difficulty}">${quest.difficulty}</div>
+                    </div>
+                    <div class="quest-desc">${quest.description}</div>
+                    <div class="quest-progress">
+                        <div class="quest-progress-bar" style="width: ${progressPercent}%"></div>
+                    </div>
+                    <div class="quest-progress-text">${Math.floor(quest.progress)} / ${quest.maxProgress}</div>
+                    <div class="quest-rewards">Rewards: ${rewardsHTML}</div>
+                `;
+
+                questListEl.appendChild(div);
+            }
+        }
+
+        window.assignQuestToSelectedAgent = function() {
+            if (!selectedAgentForQuest) return;
+
+            const quest = engine.assignQuest(selectedAgentForQuest.id);
+            if (quest) {
+                showNotification('success', 'Quest Assigned', `${quest.icon} ${quest.name} assigned to ${selectedAgentForQuest.name}!`, selectedAgentForQuest.tribe);
+                updateQuests();
+            }
+        };
 
         // Game speed and pause controls
         let gameSpeed = 3000;
