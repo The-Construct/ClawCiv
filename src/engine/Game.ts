@@ -9,6 +9,7 @@ import { AchievementSystem } from '../systems/Achievements.ts';
 import { EventSystem } from '../systems/Events.ts';
 import { QuestSystem } from '../systems/Quests.ts';
 import { DiplomacySystem } from '../systems/Diplomacy.ts';
+import { SeasonSystem } from '../systems/Seasons.ts';
 
 export interface Message {
   id: string;
@@ -72,6 +73,7 @@ export class GameEngine {
   private eventSystem: EventSystem;
   private questSystem: QuestSystem;
   private diplomacySystem: DiplomacySystem;
+  private seasonSystem: SeasonSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -83,6 +85,7 @@ export class GameEngine {
     this.eventSystem = new EventSystem();
     this.questSystem = new QuestSystem();
     this.diplomacySystem = new DiplomacySystem();
+    this.seasonSystem = new SeasonSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -699,6 +702,31 @@ export class GameEngine {
       });
     }
 
+    // Advance season and weather
+    const seasonUpdate = this.seasonSystem.advanceDay();
+    if (seasonUpdate.seasonChanged) {
+      this.addMessage({
+        id: `season-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: `🌍 The season has changed to ${seasonUpdate.newSeason!.emoji} ${seasonUpdate.newSeason!.name}!`,
+        timestamp: this.state.day,
+        type: 'celebration'
+      });
+    }
+    if (seasonUpdate.weatherChanged && !seasonUpdate.seasonChanged) {
+      this.addMessage({
+        id: `weather-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: `🌦️ Weather changed to ${seasonUpdate.newWeather!.emoji} ${seasonUpdate.newWeather!.name}`,
+        timestamp: this.state.day,
+        type: 'celebration'
+      });
+    }
+
     // Update buildings and apply benefits
     const buildings = this.buildingSystem.getBuildings();
     // Sync with state
@@ -804,27 +832,33 @@ export class GameEngine {
     // Determine primary action based on skills
     let primaryAction = 'greeting';
     if (agent.skills.includes('farming')) {
-      agent.resources.food += 12;
+      const foodModifier = this.seasonSystem.getResourceModifier('food');
+      agent.resources.food += 12 * foodModifier;
       primaryAction = 'farming';
       this.tokenSystem.earnTokens(agent.id, 2, 'farming');
       this.grantExperience(agent, 2);
     }
     if (agent.skills.includes('mining')) {
-      agent.resources.materials += 8;
+      const materialsModifier = this.seasonSystem.getResourceModifier('materials');
+      agent.resources.materials += 8 * materialsModifier;
       primaryAction = 'mining';
       this.tokenSystem.earnTokens(agent.id, 3, 'mining');
       this.grantExperience(agent, 3);
     }
     if (agent.skills.includes('research')) {
-      agent.resources.knowledge += 5;
+      const knowledgeModifier = this.seasonSystem.getResourceModifier('knowledge');
+      agent.resources.knowledge += 5 * knowledgeModifier;
       primaryAction = 'research';
       this.tokenSystem.earnTokens(agent.id, 5, 'research');
       this.grantExperience(agent, 5);
     }
 
     // Passive regeneration for all agents (keeps game going longer)
-    agent.resources.food += 1;
-    agent.resources.energy += 1;
+    // Apply seasonal modifiers
+    const foodRegenMod = this.seasonSystem.getResourceModifier('food');
+    const energyMod = this.seasonSystem.getResourceModifier('energy');
+    agent.resources.food += 1 * foodRegenMod;
+    agent.resources.energy += 1 * energyMod;
 
     // Generate dialogue
     const dialogue = this.generateDialogue(agent, primaryAction);
@@ -1119,6 +1153,22 @@ export class GameEngine {
     return relationships;
   }
 
+  public getSeasonSystem(): SeasonSystem {
+    return this.seasonSystem;
+  }
+
+  public getCurrentSeason() {
+    return this.seasonSystem.getCurrentSeason();
+  }
+
+  public getCurrentWeather() {
+    return this.seasonSystem.getCurrentWeather();
+  }
+
+  public getSeasonSummary() {
+    return this.seasonSystem.getConditionsSummary();
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1130,6 +1180,7 @@ export class GameEngine {
       eventSystem: this.eventSystem.serialize(),
       questSystem: this.questSystem.serialize(),
       diplomacySystem: this.diplomacySystem.serialize(),
+      seasonSystem: this.seasonSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1166,6 +1217,11 @@ export class GameEngine {
     // Restore diplomacy system
     if (data.diplomacySystem) {
       this.diplomacySystem.deserialize(data.diplomacySystem);
+    }
+
+    // Restore season system
+    if (data.seasonSystem) {
+      this.seasonSystem.deserialize(data.seasonSystem);
     }
 
     // Restore victory state

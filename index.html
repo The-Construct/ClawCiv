@@ -988,6 +988,104 @@
             background: #8b5cf6;
             color: #fff;
         }
+        #seasons {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #10b981;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        #seasons h2 {
+            color: #10b981;
+            margin: 0 0 15px 0;
+            font-size: 16px;
+        }
+        .season-display {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        .season-info {
+            flex: 1;
+        }
+        .season-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .season-desc {
+            font-size: 12px;
+            color: #888;
+        }
+        .season-icon {
+            font-size: 40px;
+        }
+        .weather-display {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .weather-icon {
+            font-size: 32px;
+        }
+        .weather-info {
+            flex: 1;
+        }
+        .weather-name {
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .weather-desc {
+            font-size: 11px;
+            color: #888;
+        }
+        .season-progress {
+            background: #1a1a2e;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        .season-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #34d399);
+            transition: width 0.5s ease;
+        }
+        .resource-modifiers {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 15px;
+        }
+        .modifier-item {
+            background: #1a1a2e;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .modifier-icon {
+            font-size: 16px;
+            margin-bottom: 3px;
+        }
+        .modifier-value {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .modifier-value.bonus {
+            color: #22c55e;
+        }
+        .modifier-value.penalty {
+            color: #ef4444;
+        }
+        .modifier-value.neutral {
+            color: #6b7280;
+        }
     </style>
 </head>
 <body>
@@ -1225,6 +1323,33 @@
             <h2>🌐 Tribe Diplomacy</h2>
             <div class="diplomacy-grid" id="diplomacyGrid">
                 <div style="text-align: center; color: #666; padding: 20px;">Loading...</div>
+            </div>
+        </div>
+
+        <div id="seasons">
+            <h2>🌍 Season & Weather</h2>
+            <div class="season-display">
+                <div class="season-info">
+                    <div class="season-name" id="seasonName">🌸 Spring</div>
+                    <div class="season-desc" id="seasonDesc">Season of renewal and growth</div>
+                </div>
+                <div class="season-icon" id="seasonIcon">🌸</div>
+            </div>
+            <div class="season-progress">
+                <div class="season-progress-bar" id="seasonProgress" style="width: 0%"></div>
+            </div>
+            <div style="text-align: center; color: #888; font-size: 11px; margin-top: 5px;">
+                Day <span id="dayInSeason">1</span> of <span id="daysPerSeason">25</span>
+            </div>
+            <div class="weather-display">
+                <div class="weather-icon" id="weatherIcon">☀️</div>
+                <div class="weather-info">
+                    <div class="weather-name" id="weatherName">Sunny</div>
+                    <div class="weather-desc" id="weatherDesc">Clear skies and good visibility</div>
+                </div>
+            </div>
+            <div class="resource-modifiers" id="resourceModifiers">
+                <!-- Filled by JavaScript -->
             </div>
         </div>
     </div>
@@ -1543,6 +1668,7 @@
             updateActiveEvents();
             updateQuests();
             updateDiplomacy();
+            updateSeasons();
         }
 
         // Tech tree state
@@ -1924,6 +2050,49 @@
             }
 
             diplomacyGrid.innerHTML = html;
+        }
+
+        function updateSeasons() {
+            const season = engine.getCurrentSeason();
+            const weather = engine.getCurrentWeather();
+            const seasonSystem = engine.getSeasonSystem();
+
+            // Update season info
+            document.getElementById('seasonName').textContent = `${season.emoji} ${season.name.charAt(0).toUpperCase() + season.name.slice(1)}`;
+            document.getElementById('seasonDesc').textContent = season.description;
+            document.getElementById('seasonIcon').textContent = season.emoji;
+
+            // Update progress
+            document.getElementById('seasonProgress').style.width = `${seasonSystem.getSeasonProgress()}%`;
+            document.getElementById('dayInSeason').textContent = seasonSystem.getDayInSeason();
+            document.getElementById('daysPerSeason').textContent = seasonSystem.getDaysPerSeason();
+
+            // Update weather
+            document.getElementById('weatherIcon').textContent = weather.emoji;
+            document.getElementById('weatherName').textContent = weather.name.charAt(0).toUpperCase() + weather.name.slice(1);
+            document.getElementById('weatherDesc').textContent = weather.description;
+
+            // Update resource modifiers
+            const modifiersEl = document.getElementById('resourceModifiers');
+            const modifiers = [
+                { icon: '🌾', name: 'Food', value: seasonSystem.getResourceModifier('food') },
+                { icon: '⚡', name: 'Energy', value: seasonSystem.getResourceModifier('energy') },
+                { icon: '🔧', name: 'Materials', value: seasonSystem.getResourceModifier('materials') },
+                { icon: '📚', name: 'Knowledge', value: seasonSystem.getResourceModifier('knowledge') }
+            ];
+
+            modifiersEl.innerHTML = modifiers.map(mod => {
+                const percent = Math.round((mod.value - 1) * 100);
+                const valueClass = percent > 0 ? 'bonus' : percent < 0 ? 'penalty' : 'neutral';
+                const valueText = percent > 0 ? `+${percent}%` : percent < 0 ? `${percent}%` : '0%';
+
+                return `
+                    <div class="modifier-item">
+                        <div class="modifier-icon">${mod.icon}</div>
+                        <div class="modifier-value ${valueClass}">${valueText}</div>
+                    </div>
+                `;
+            }).join('');
         }
 
         // Game speed and pause controls
