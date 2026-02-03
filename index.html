@@ -1975,6 +1975,115 @@
             background: #ef4444;
             border-radius: 3px;
         }
+        .mercenary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 12px;
+        }
+        .mercenary-card {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            border: 2px solid #8b5cf6;
+            transition: all 0.2s;
+        }
+        .mercenary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        .mercenary-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .mercenary-icon {
+            font-size: 24px;
+        }
+        .mercenary-info {
+            flex: 1;
+        }
+        .mercenary-name {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .mercenary-type {
+            font-size: 10px;
+            color: #888;
+        }
+        .mercenary-status {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .mercenary-status.active { background: #22c55e; color: #000; }
+        .mercenary-status.deserted { background: #ef4444; }
+        .mercenary-status.completed { background: #6b7280; }
+        .mercenary-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px;
+            font-size: 10px;
+            margin-top: 8px;
+        }
+        .mercenary-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+        }
+        .mercenary-stat-label {
+            color: #666;
+        }
+        .mercenary-stat-value {
+            font-weight: bold;
+        }
+        .mercenary-cost {
+            margin-top: 8px;
+            padding: 6px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 4px;
+            text-align: center;
+        }
+        .mercenary-cost-value {
+            font-size: 14px;
+            font-weight: bold;
+            color: #8b5cf6;
+        }
+        .mercenary-loyalty {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .loyalty-bar {
+            flex: 1;
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .loyalty-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #f59e0b, #22c55e);
+            transition: width 0.3s;
+        }
+        .mercenary-company-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: rgba(139, 92, 246, 0.1);
+            border-radius: 4px;
+        }
+        .company-reputation {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #8b5cf6;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -2304,6 +2413,13 @@
                 <!-- Filled by JavaScript -->
             </div>
         </div>
+
+        <div id="mercenaryInfo">
+            <h2>⚔️ Mercenary Companies</h2>
+            <div class="mercenary-cards" id="mercenaryCards">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
     </div>
 
     <script type="module">
@@ -2630,6 +2746,7 @@
             updateDiseaseInfo();
             updateWonderInfo();
             updateTradeInfo();
+            updateMercenaryInfo();
         }
 
         // Tech tree state
@@ -3610,6 +3727,79 @@
             }
 
             tradeEl.innerHTML = html;
+        }
+
+        function updateMercenaryInfo() {
+            const mercenaryEl = document.getElementById('mercenaryCards');
+            if (!mercenaryEl) return;
+
+            const companies = engine.getAvailableCompanies();
+            const contracts = engine.getActiveContracts();
+            let html = '';
+
+            // Show available companies first
+            for (const company of companies) {
+                html += '<div class="mercenary-card">';
+                html += '<div class="mercenary-company-header">';
+                html += '<span class="mercenary-icon">' + company.icon + '</span>';
+                html += '<div class="mercenary-info">';
+                html += '<div class="mercenary-name">' + company.name + '</div>';
+                html += '<div style="font-size: 9px; color: #888;">' + company.description + '</div>';
+                html += '</div>';
+                html += '<span class="company-reputation">' + company.reputation.toUpperCase() + '</span>';
+                html += '</div>';
+
+                html += '<div class="mercenary-stats">';
+                html += '<div class="mercenary-stat"><span class="mercenary-stat-label">Available</span><span class="mercenary-stat-value">' + company.availableUnits + '/' + company.maxUnits + '</span></div>';
+                html += '<div class="mercenary-stat"><span class="mercenary-stat-label">Skill</span><span class="mercenary-stat-value">' + company.baseSkill + '</span></div>';
+                html += '<div class="mercenary-stat"><span class="mercenary-stat-label">Reliability</span><span class="mercenary-stat-value">' + company.reliability + '%</span></div>';
+                html += '<div class="mercenary-stat"><span class="mercenary-stat-label">Cost Multiplier</span><span class="mercenary-stat-value">x' + company.dailyCostMultiplier.toFixed(1) + '</span></div>';
+                html += '</div>';
+
+                html += '<div style="margin-top: 8px; font-size: 9px; color: #888;">Specializations: ' + company.specializations.join(', ') + '</div>';
+                html += '<div style="margin-top: 4px; font-size: 9px; color: #a855f7;">Ability: ' + company.specialAbility + '</div>';
+                html += '</div>';
+            }
+
+            // Show active contracts
+            for (const contract of contracts) {
+                html += '<div class="mercenary-card">';
+                html += '<div class="mercenary-header">';
+                html += '<span class="mercenary-icon">' + contract.icon + '</span>';
+                html += '<div class="mercenary-info">';
+                html += '<div class="mercenary-name">' + contract.companyName + ' - ' + contract.mercenaryType + '</div>';
+                html += '<div class="mercenary-type">Employer: ' + contract.employerTribe + '</div>';
+                html += '</div>';
+                html += '<span class="mercenary-status active">ACTIVE</span>';
+                html += '</div>';
+
+                html += '<div class="mercenary-stats">';
+                html += '<div class="mercenary-stat"><span class="mercenary-stat-label">Units</span><span class="mercenary-stat-value">' + contract.unitCount + '</span></div>';
+                html += '<div class="mercenary-stat"><span class="mercenary-stat-label">Combat Power</span><span class="mercenary-stat-value">' + contract.combatPower + '</span></div>';
+                html += '<div class="mercenary-stat"><span class="mercenary-stat-label">Days Left</span><span class="mercenary-stat-value">' + contract.daysRemaining + '/' + contract.contractDays + '</span></div>';
+                html += '<div class="mercenary-stat"><span class="mercenary-stat-label">Battles</span><span class="mercenary-stat-value">' + contract.battlesFought + '</span></div>';
+                html += '</div>';
+
+                html += '<div class="mercenary-cost">';
+                html += '<div style="font-size: 9px; color: #888;">Daily Wages</div>';
+                html += '<div class="mercenary-cost-value">' + contract.dailyWages + ' $CLAW/day</div>';
+                html += '</div>';
+
+                html += '<div class="mercenary-loyalty">';
+                html += '<span style="font-size: 9px; color: #888;">Loyalty</span>';
+                html += '<div class="loyalty-bar">';
+                html += '<div class="loyalty-fill" style="width: ' + contract.loyalty + '%"></div>';
+                html += '</div>';
+                html += '<span style="font-size: 9px; font-weight: bold;">' + Math.round(contract.loyalty) + '%</span>';
+                html += '</div>';
+                html += '</div>';
+            }
+
+            if (companies.length === 0 && contracts.length === 0) {
+                html = '<div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">No mercenaries available. Hire temporary soldiers to bolster your military strength!</div>';
+            }
+
+            mercenaryEl.innerHTML = html;
         }
 
         // Game speed and pause controls

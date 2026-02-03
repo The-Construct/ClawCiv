@@ -20,6 +20,7 @@ import { ReligionSystem } from '../systems/Religion.ts';
 import { DiseaseSystem } from '../systems/Disease.ts';
 import { WonderSystem } from '../systems/Wonders.ts';
 import { TradeRouteSystem } from '../systems/TradeRoutes.ts';
+import { MercenarySystem } from '../systems/Mercenaries.ts';
 
 export interface Message {
   id: string;
@@ -94,6 +95,7 @@ export class GameEngine {
   private diseaseSystem: DiseaseSystem;
   private wonderSystem: WonderSystem;
   private tradeRouteSystem: TradeRouteSystem;
+  private mercenarySystem: MercenarySystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -116,6 +118,7 @@ export class GameEngine {
     this.diseaseSystem = new DiseaseSystem();
     this.wonderSystem = new WonderSystem();
     this.tradeRouteSystem = new TradeRouteSystem();
+    this.mercenarySystem = new MercenarySystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -1775,6 +1778,42 @@ export class GameEngine {
     return this.tradeRouteSystem.getStatistics();
   }
 
+  public getMercenarySystem(): MercenarySystem {
+    return this.mercenarySystem;
+  }
+
+  public getAllCompanies() {
+    return this.mercenarySystem.getAllCompanies();
+  }
+
+  public getAvailableCompanies() {
+    return this.mercenarySystem.getAvailableCompanies();
+  }
+
+  public getAllContracts() {
+    return this.mercenarySystem.getAllContracts();
+  }
+
+  public getActiveContracts() {
+    return this.mercenarySystem.getActiveContracts();
+  }
+
+  public getContractsByTribe(tribe: string) {
+    return this.mercenarySystem.getContractsByTribe(tribe);
+  }
+
+  public hireMercenaries(companyId: string, tribe: string, mercenaryType: string, unitCount: number, contractDays: number) {
+    return this.mercenarySystem.hireMercenaries(companyId, tribe, mercenaryType as any, unitCount, contractDays, this.state.day);
+  }
+
+  public getMercenaryRoster(tribe: string) {
+    return this.mercenarySystem.getRoster(tribe);
+  }
+
+  public getMercenaryStatistics() {
+    return this.mercenarySystem.getStatistics();
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1797,6 +1836,7 @@ export class GameEngine {
       diseaseSystem: this.diseaseSystem.serialize(),
       wonderSystem: this.wonderSystem.serialize(),
       tradeRouteSystem: this.tradeRouteSystem.serialize(),
+      mercenarySystem: this.mercenarySystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1888,6 +1928,11 @@ export class GameEngine {
     // Restore trade route system
     if (data.tradeRouteSystem) {
       this.tradeRouteSystem.deserialize(data.tradeRouteSystem);
+    }
+
+    // Restore mercenary system
+    if (data.mercenarySystem) {
+      this.mercenarySystem.deserialize(data.mercenarySystem);
     }
 
     // Restore victory state
