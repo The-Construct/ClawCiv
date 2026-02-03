@@ -1177,6 +1177,74 @@ export class GameEngine {
       this.populationSystem.recordTrend(this.state.day, this.state.agents);
     }
 
+    // Update quest system
+    // Check for quest expirations
+    const expiredQuests = this.questSystem.checkQuestExpirations(this.state.day);
+    for (const quest of expiredQuests) {
+      const agent = this.state.agents.find(a => a.id === quest.assignedAgentId);
+      if (agent) {
+        this.addMessage({
+          id: `quest-expired-${quest.id}`,
+          agentId: quest.assignedAgentId,
+          agentName: agent.name,
+          tribe: agent.tribe,
+          content: `⏰ Quest Expired: ${quest.icon} ${quest.name} - Time limit exceeded!`,
+          timestamp: this.state.day,
+          type: 'chat'
+        });
+      }
+    }
+
+    // Generate new quests periodically for agents without quests
+    if (this.state.day % 10 === 0) {
+      for (const agent of this.state.agents) {
+        if (!agent.alive) continue;
+
+        const currentQuests = this.questSystem.getQuestsByAgent(agent.id);
+        const hasActiveQuest = currentQuests.some(q => q.status === 'active');
+
+        // Only assign quest if agent doesn't have one and is adult
+        const demo = this.populationSystem.getAgentDemographics(agent.id);
+        if (!hasActiveQuest && demo && demo.ageGroup === 'adult' && Math.random() < 0.3) {
+          const newQuest = this.questSystem.generateQuest(agent);
+          if (newQuest) {
+            this.addMessage({
+              id: `quest-assigned-${newQuest.id}`,
+              agentId: agent.id,
+              agentName: agent.name,
+              tribe: agent.tribe,
+              content: `📜 New Quest: ${newQuest.icon} ${newQuest.name} - ${newQuest.description}`,
+              timestamp: this.state.day,
+              type: 'chat'
+            });
+          }
+        }
+      }
+    }
+
+    // Generate daily quests for each tribe
+    if (this.state.day % 7 === 0) {
+      for (const tribe of this.TRIBES) {
+        const dailyQuest = this.questSystem.generateDailyQuest(tribe, this.state.day);
+        if (dailyQuest) {
+          this.addMessage({
+            id: `daily-quest-${dailyQuest.id}`,
+            agentId: 'system',
+            agentName: 'Tribe Council',
+            tribe,
+            content: `📋 Daily Quest Available: ${dailyQuest.icon} ${dailyQuest.name}`,
+            timestamp: this.state.day,
+            type: 'celebration'
+          });
+        }
+      }
+    }
+
+    // Cleanup old quests periodically
+    if (this.state.day % 50 === 0) {
+      this.questSystem.cleanupOldQuests(500);
+    }
+
     // Clean up old population data periodically
     if (this.state.day % 100 === 0) {
       this.populationSystem.cleanup(this.state.day);
