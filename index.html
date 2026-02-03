@@ -1351,6 +1351,83 @@
             background: #8b5cf6;
             transition: width 0.3s;
         }
+        .artifact-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 12px;
+        }
+        .artifact-card {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            border: 2px solid #f59e0b;
+            transition: all 0.2s;
+        }
+        .artifact-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        }
+        .artifact-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .artifact-icon {
+            font-size: 22px;
+        }
+        .artifact-info {
+            flex: 1;
+        }
+        .artifact-name {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .artifact-rarity {
+            font-size: 9px;
+            padding: 2px 4px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .artifact-rarity.common { background: #6b7280; }
+        .artifact-rarity.uncommon { background: #22c55e; color: #000; }
+        .artifact-rarity.rare { background: #3b82f6; }
+        .artifact-rarity.epic { background: #a855f7; }
+        .artifact-rarity.legendary { background: #f59e0b; color: #000; }
+        .artifact-tribe {
+            font-size: 10px;
+            color: #888;
+        }
+        .artifact-bonuses {
+            font-size: 9px;
+            margin-top: 6px;
+            color: #aaa;
+        }
+        .artifact-bonus {
+            padding: 2px 0;
+        }
+        .set-progress {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+        }
+        .set-bar {
+            height: 4px;
+            background: #2d2d44;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .set-fill {
+            height: 100%;
+            background: linear-gradient(to right, #f59e0b, #ef4444);
+            transition: width 0.3s;
+        }
+        .set-info {
+            font-size: 9px;
+            color: #888;
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -1635,6 +1712,13 @@
         <div id="spyInfo">
             <h2>🕵️ Spy Network</h2>
             <div class="spy-cards" id="spyCards">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
+
+        <div id="artifactInfo">
+            <h2>🏺 Artifacts & Relics</h2>
+            <div class="artifact-cards" id="artifactCards">
                 <!-- Filled by JavaScript -->
             </div>
         </div>
@@ -1958,6 +2042,7 @@
             updateTribesInfo();
             updateGovernanceInfo();
             updateSpyInfo();
+            updateArtifactInfo();
         }
 
         // Tech tree state
@@ -2546,6 +2631,71 @@
             }
 
             spyEl.innerHTML = html;
+        }
+
+        function updateArtifactInfo() {
+            const artifactEl = document.getElementById('artifactCards');
+            if (!artifactEl) return;
+
+            const artifacts = engine.getAllArtifacts();
+            const setProgress = engine.getSetProgress ? {} : {};
+
+            // Group artifacts by tribe
+            const artifactsByTribe = new Map();
+            for (const artifact of artifacts) {
+                if (!artifactsByTribe.has(artifact.tribe)) {
+                    artifactsByTribe.set(artifact.tribe, []);
+                }
+                artifactsByTribe.get(artifact.tribe).push(artifact);
+            }
+
+            let html = '';
+
+            for (const [tribe, tribeArtifacts] of artifactsByTribe) {
+                // Get set progress for this tribe
+                const tribeSetProgress = engine.getSetProgress(tribe);
+
+                for (const artifact of tribeArtifacts) {
+                    html += '<div class="artifact-card">';
+                    html += '<div class="artifact-header">';
+                    html += '<span class="artifact-icon">' + artifact.icon + '</span>';
+                    html += '<div class="artifact-info">';
+                    html += '<div class="artifact-name">' + artifact.name + '</div>';
+                    html += '<span class="artifact-rarity ' + artifact.rarity + '">' + artifact.rarity + '</span>';
+                    html += '<div class="artifact-tribe">' + tribe + '</div>';
+                    html += '</div>';
+                    html += '</div>';
+
+                    if (artifact.bonuses && artifact.bonuses.length > 0) {
+                        html += '<div class="artifact-bonuses">';
+                        html += '<div style="font-weight: bold; margin-bottom: 4px;">Bonuses:</div>';
+                        for (const bonus of artifact.bonuses) {
+                            html += '<div class="artifact-bonus">• ' + bonus.description + '</div>';
+                        }
+                        html += '</div>';
+                    }
+
+                    if (artifact.set) {
+                        const setInfo = tribeSetProgress.find(s => s.setId === artifact.set);
+                        if (setInfo) {
+                            html += '<div class="set-progress">';
+                            html += '<div style="font-size: 9px;">Set: ' + setInfo.setName + ' (' + setInfo.count + '/' + setInfo.max + ')</div>';
+                            html += '<div class="set-bar">';
+                            html += '<div class="set-fill" style="width: ' + (setInfo.count / setInfo.max * 100) + '%"></div>';
+                            html += '</div>';
+                            html += '</div>';
+                        }
+                    }
+
+                    html += '</div>';
+                }
+            }
+
+            if (artifacts.length === 0) {
+                html = '<div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">No artifacts discovered yet. Agents may find artifacts while exploring territory.</div>';
+            }
+
+            artifactEl.innerHTML = html;
         }
 
         // Game speed and pause controls

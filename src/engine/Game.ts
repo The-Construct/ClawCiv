@@ -14,6 +14,7 @@ import { TribeConfigSystem } from '../systems/TribeConfig.ts';
 import { OrganizationSystem } from '../systems/Organizations.ts';
 import { GovernanceSystem } from '../systems/Governance.ts';
 import { SpySystem } from '../systems/Spy.ts';
+import { ArtifactSystem } from '../systems/Artifacts.ts';
 
 export interface Message {
   id: string;
@@ -82,6 +83,7 @@ export class GameEngine {
   private organizationSystem: OrganizationSystem;
   private governanceSystem: GovernanceSystem;
   private spySystem: SpySystem;
+  private artifactSystem: ArtifactSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -98,6 +100,7 @@ export class GameEngine {
     this.organizationSystem = new OrganizationSystem();
     this.governanceSystem = new GovernanceSystem();
     this.spySystem = new SpySystem();
+    this.artifactSystem = new ArtifactSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -238,6 +241,34 @@ export class GameEngine {
         type: 'celebration'
       });
     }
+  }
+
+  private getRarityMultiplier(rarity: string): number {
+    const multipliers = {
+      common: 1,
+      uncommon: 2,
+      rare: 4,
+      epic: 8,
+      legendary: 16
+    };
+    return multipliers[rarity] || 1;
+  }
+
+  private applyArtifactBonuses(tribe: string, resource: string, baseAmount: number): number {
+    const bonuses = this.artifactSystem.getArtifactBonuses(tribe);
+    let modifiedAmount = baseAmount;
+
+    // Apply resource multipliers
+    if (bonuses.resourceMultipliers[resource]) {
+      modifiedAmount *= bonuses.resourceMultipliers[resource];
+    }
+
+    // Apply flat bonuses
+    if (bonuses.flatBonuses[resource]) {
+      modifiedAmount += bonuses.flatBonuses[resource];
+    }
+
+    return modifiedAmount;
   }
 
   private useSpecialAbility(agent: Agent): void {
@@ -490,9 +521,11 @@ export class GameEngine {
     const defenderCombatMod = this.tribeConfigSystem.getCombatModifier(defender.tribe);
     const attackerGovEffects = this.governanceSystem.getEffects(attacker.tribe);
     const defenderGovEffects = this.governanceSystem.getEffects(defender.tribe);
+    const attackerArtifacts = this.artifactSystem.getArtifactBonuses(attacker.tribe);
+    const defenderArtifacts = this.artifactSystem.getArtifactBonuses(defender.tribe);
 
-    const attackPower = (attacker.resources.energy * 0.5 + attacker.resources.materials * 0.3) * attackerCombatMod * attackerGovEffects.militaryPower;
-    const defensePower = (defender.resources.energy * 0.5 + defender.resources.materials * 0.3) * defenderCombatMod * defenderGovEffects.militaryPower;
+    const attackPower = (attacker.resources.energy * 0.5 + attacker.resources.materials * 0.3) * attackerCombatMod * attackerGovEffects.militaryPower * attackerArtifacts.combatBoost;
+    const defensePower = (defender.resources.energy * 0.5 + defender.resources.materials * 0.3) * defenderCombatMod * defenderGovEffects.militaryPower * defenderArtifacts.defenseBoost;
 
     const attackerWins = attackPower > defensePower * (0.8 + Math.random() * 0.4);
 
@@ -974,7 +1007,9 @@ export class GameEngine {
       const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'food');
       const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'farming');
       const govEffects = this.governanceSystem.getEffects(agent.tribe);
-      agent.resources.food += 12 * foodModifier * tribeModifier * skillAffinity * govEffects.productivity;
+      let baseFood = 12 * foodModifier * tribeModifier * skillAffinity * govEffects.productivity;
+      baseFood = this.applyArtifactBonuses(agent.tribe, 'food', baseFood);
+      agent.resources.food += baseFood;
       primaryAction = 'farming';
       this.tokenSystem.earnTokens(agent.id, 2, 'farming');
       this.grantExperience(agent, 2);
@@ -985,7 +1020,9 @@ export class GameEngine {
       const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'materials');
       const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'mining');
       const govEffects = this.governanceSystem.getEffects(agent.tribe);
-      agent.resources.materials += 8 * materialsModifier * tribeModifier * skillAffinity * govEffects.productivity;
+      let baseMaterials = 8 * materialsModifier * tribeModifier * skillAffinity * govEffects.productivity;
+      baseMaterials = this.applyArtifactBonuses(agent.tribe, 'materials', baseMaterials);
+      agent.resources.materials += baseMaterials;
       primaryAction = 'mining';
       this.tokenSystem.earnTokens(agent.id, 3, 'mining');
       this.grantExperience(agent, 3);
@@ -996,7 +1033,10 @@ export class GameEngine {
       const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'knowledge');
       const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'research');
       const govEffects = this.governanceSystem.getEffects(agent.tribe);
-      agent.resources.knowledge += 5 * knowledgeModifier * tribeModifier * skillAffinity * govEffects.researchSpeed;
+      const artifactBonuses = this.artifactSystem.getArtifactBonuses(agent.tribe);
+      let baseKnowledge = 5 * knowledgeModifier * tribeModifier * skillAffinity * govEffects.researchSpeed * artifactBonuses.researchBoost;
+      baseKnowledge = this.applyArtifactBonuses(agent.tribe, 'knowledge', baseKnowledge);
+      agent.resources.knowledge += baseKnowledge;
       primaryAction = 'research';
       this.tokenSystem.earnTokens(agent.id, 5, 'research');
       this.grantExperience(agent, 5);
@@ -1054,6 +1094,24 @@ export class GameEngine {
     // Claim territory for tribe (5% chance per move)
     if (Math.random() < 0.05) {
       this.territorySystem.claimTerritory(agent.x, agent.y, agent.tribe, 10);
+    }
+
+    // Small chance to discover artifacts while exploring
+    const discoveredArtifact = this.artifactSystem.discoverArtifact(agent.tribe, agent.id);
+    if (discoveredArtifact) {
+      this.addMessage({
+        id: `artifact-discovery-${Date.now()}-${agent.id}`,
+        agentId: agent.id,
+        agentName: agent.name,
+        tribe: agent.tribe,
+        content: `🏺 ${agent.name} discovered ${discoveredArtifact.icon} ${discoveredArtifact.name}! ${discoveredArtifact.description}`,
+        timestamp: this.state.day,
+        type: 'celebration'
+      });
+
+      // Reward for discovery
+      this.tokenSystem.earnTokens(agent.id, 50 * this.getRarityMultiplier(discoveredArtifact.rarity), 'artifact_discovery');
+      this.grantExperience(agent, 30);
     }
   }
 
@@ -1393,6 +1451,38 @@ export class GameEngine {
     return this.spySystem.getIntelligenceReports(tribe);
   }
 
+  public getArtifactSystem(): ArtifactSystem {
+    return this.artifactSystem;
+  }
+
+  public getArtifactsByTribe(tribe: string) {
+    return this.artifactSystem.getArtifactsByTribe(tribe);
+  }
+
+  public getAllArtifacts() {
+    return this.artifactSystem.getAllArtifacts();
+  }
+
+  public getArtifact(artifactId: string) {
+    return this.artifactSystem.getArtifact(artifactId);
+  }
+
+  public generateArtifact(tribe: string, rarity?: string, type?: string) {
+    return this.artifactSystem.generateArtifact(tribe, rarity as any, type as any);
+  }
+
+  public getArtifactBonuses(tribe: string) {
+    return this.artifactSystem.getArtifactBonuses(tribe);
+  }
+
+  public getSetProgress(tribe: string) {
+    return this.artifactSystem.getSetProgress(tribe);
+  }
+
+  public transferArtifact(artifactId: string, newTribe: string, method: string): boolean {
+    return this.artifactSystem.transferArtifact(artifactId, newTribe, method as any);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1409,6 +1499,7 @@ export class GameEngine {
       organizationSystem: this.organizationSystem.serialize(),
       governanceSystem: this.governanceSystem.serialize(),
       spySystem: this.spySystem.serialize(),
+      artifactSystem: this.artifactSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1470,6 +1561,11 @@ export class GameEngine {
     // Restore spy system
     if (data.spySystem) {
       this.spySystem.deserialize(data.spySystem);
+    }
+
+    // Restore artifact system
+    if (data.artifactSystem) {
+      this.artifactSystem.deserialize(data.artifactSystem);
     }
 
     // Restore victory state
