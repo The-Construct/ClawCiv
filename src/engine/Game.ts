@@ -16,6 +16,7 @@ import { GovernanceSystem } from '../systems/Governance.ts';
 import { SpySystem } from '../systems/Spy.ts';
 import { ArtifactSystem } from '../systems/Artifacts.ts';
 import { FestivalSystem } from '../systems/Festivals.ts';
+import { ReligionSystem } from '../systems/Religion.ts';
 
 export interface Message {
   id: string;
@@ -86,6 +87,7 @@ export class GameEngine {
   private spySystem: SpySystem;
   private artifactSystem: ArtifactSystem;
   private festivalSystem: FestivalSystem;
+  private religionSystem: ReligionSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -104,6 +106,7 @@ export class GameEngine {
     this.spySystem = new SpySystem();
     this.artifactSystem = new ArtifactSystem();
     this.festivalSystem = new FestivalSystem();
+    this.religionSystem = new ReligionSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -1003,6 +1006,22 @@ export class GameEngine {
     if (this.state.day % 100 === 0) {
       this.festivalSystem.cleanupOldFestivals(this.state.day);
     }
+
+    // Update religion statuses
+    if (this.state.day % 5 === 0) {
+      const religionUpdate = this.religionSystem.updateReligionStatuses();
+      for (const event of religionUpdate.events) {
+        this.addMessage({
+          id: `religion-${Date.now()}`,
+          agentId: 'system',
+          agentName: 'System',
+          tribe: 'Global',
+          content: event,
+          timestamp: this.state.day,
+          type: 'celebration'
+        });
+      }
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -1533,6 +1552,42 @@ export class GameEngine {
     return this.festivalSystem.getActiveBonuses(tribe, this.state.day);
   }
 
+  public getReligionSystem(): ReligionSystem {
+    return this.religionSystem;
+  }
+
+  public getAllReligions() {
+    return this.religionSystem.getAllReligions();
+  }
+
+  public getReligion(religionId: string) {
+    return this.religionSystem.getReligion(religionId);
+  }
+
+  public getDominantReligion(tribe: string) {
+    return this.religionSystem.getDominantReligion(tribe);
+  }
+
+  public createReligion(name: string, type: string, tribe: string, founder: string, description: string) {
+    return this.religionSystem.createReligion({ name, type: type as any, tribe, founder, description });
+  }
+
+  public convertAgent(agentId: string, religionId: string, method?: string) {
+    return this.religionSystem.convertAgent(agentId, religionId, method as any);
+  }
+
+  public buildReligiousBuilding(religionId: string, tribe: string, type: string, location: { x: number; y: number }) {
+    return this.religionSystem.buildReligiousBuilding(religionId, tribe, type as any, location);
+  }
+
+  public createReligiousFigure(religionId: string, tribe: string, name: string, role: string) {
+    return this.religionSystem.createReligiousFigure(religionId, tribe, name, role as any);
+  }
+
+  public performMiracle(religionId: string, figureId: string) {
+    return this.religionSystem.performMiracle(religionId, figureId);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1551,6 +1606,7 @@ export class GameEngine {
       spySystem: this.spySystem.serialize(),
       artifactSystem: this.artifactSystem.serialize(),
       festivalSystem: this.festivalSystem.serialize(),
+      religionSystem: this.religionSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1622,6 +1678,11 @@ export class GameEngine {
     // Restore festival system
     if (data.festivalSystem) {
       this.festivalSystem.deserialize(data.festivalSystem);
+    }
+
+    // Restore religion system
+    if (data.religionSystem) {
+      this.religionSystem.deserialize(data.religionSystem);
     }
 
     // Restore victory state

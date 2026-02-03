@@ -1519,6 +1519,93 @@
             padding: 3px 0;
             color: #aaa;
         }
+        .religion-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+        }
+        .religion-card {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            border: 2px solid #a855f7;
+            transition: all 0.2s;
+        }
+        .religion-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+        }
+        .religion-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .religion-icon {
+            font-size: 22px;
+        }
+        .religion-info {
+            flex: 1;
+        }
+        .religion-name {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .religion-type {
+            font-size: 10px;
+            color: #888;
+        }
+        .religion-status {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .religion-status.emerging { background: #6b7280; }
+        .religion-status.established { background: #22c55e; color: #000; }
+        .religion-status.dominant { background: #3b82f6; }
+        .religion-status.state_religion { background: #f59e0b; color: #000; }
+        .religion-status.persecuted { background: #ef4444; }
+        .religion-status.extinct { background: #1f2937; }
+        .religion-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px;
+            font-size: 10px;
+            margin-top: 8px;
+        }
+        .religion-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+        }
+        .religion-stat-label {
+            color: #666;
+        }
+        .religion-stat-value {
+            font-weight: bold;
+        }
+        .religion-tenets {
+            margin-top: 8px;
+            padding: 6px;
+            background: #2d2d44;
+            border-radius: 4px;
+        }
+        .religion-tenet {
+            font-size: 9px;
+            padding: 2px 0;
+            color: #a855f7;
+        }
+        .religion-conflicts {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+        }
+        .conflict-item {
+            font-size: 9px;
+            padding: 2px 0;
+            color: #ef4444;
+        }
     </style>
 </head>
 <body>
@@ -1817,6 +1904,13 @@
         <div id="festivalInfo">
             <h2>🎪 Festivals & Celebrations</h2>
             <div class="festival-cards" id="festivalCards">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
+
+        <div id="religionInfo">
+            <h2>📿 Religions & Beliefs</h2>
+            <div class="religion-cards" id="religionCards">
                 <!-- Filled by JavaScript -->
             </div>
         </div>
@@ -2142,6 +2236,7 @@
             updateSpyInfo();
             updateArtifactInfo();
             updateFestivalInfo();
+            updateReligionInfo();
         }
 
         // Tech tree state
@@ -2867,6 +2962,64 @@
             }
 
             festivalEl.innerHTML = html;
+        }
+
+        function updateReligionInfo() {
+            const religionEl = document.getElementById('religionCards');
+            if (!religionEl) return;
+
+            const religions = engine.getAllReligions();
+            let html = '';
+
+            for (const religion of religions) {
+                if (religion.status === 'extinct') continue;
+
+                html += '<div class="religion-card">';
+                html += '<div class="religion-header">';
+                html += '<span class="religion-icon">' + religion.icon + '</span>';
+                html += '<div class="religion-info">';
+                html += '<div class="religion-name">' + religion.name + '</div>';
+                html += '<div class="religion-type">' + religion.type + ' - ' + religion.description + '</div>';
+                html += '</div>';
+                html += '<span class="religion-status ' + religion.status + '">' + religion.status.toUpperCase() + '</span>';
+                html += '</div>';
+
+                html += '<div class="religion-stats">';
+                html += '<div class="religion-stat"><span class="religion-stat-label">Followers</span><span class="religion-stat-value">' + religion.totalFollowers + '</span></div>';
+                html += '<div class="religion-stat"><span class="religion-stat-label">Influence</span><span class="religion-stat-value">' + Math.round(religion.influence) + '</span></div>';
+                html += '<div class="religion-stat"><span class="religion-stat-label">Fervor</span><span class="religion-stat-value">' + Math.round(religion.fervor) + '%</span></div>';
+                html += '<div class="religion-stat"><span class="religion-stat-label">Orthodoxy</span><span class="religion-stat-value">' + Math.round(religion.orthodoxy) + '%</span></div>';
+                html += '</div>';
+
+                if (religion.tenets && religion.tenets.length > 0) {
+                    html += '<div class="religion-tenets">';
+                    html += '<div style="font-size: 9px; color: #888; margin-bottom: 4px;">Core Tenets:</div>';
+                    for (const tenet of religion.tenets.slice(0, 3)) {
+                        html += '<div class="religion-tenet">• ' + tenet + '</div>';
+                    }
+                    html += '</div>';
+                }
+
+                if (religion.enemies && religion.enemies.length > 0) {
+                    html += '<div class="religion-conflicts">';
+                    html += '<div style="font-size: 9px; color: #888; margin-bottom: 4px;">In Conflict With:</div>';
+                    for (const enemyId of religion.enemies) {
+                        const enemy = engine.getReligion(enemyId);
+                        if (enemy && enemy.status !== 'extinct') {
+                            html += '<div class="conflict-item">⚔️ ' + enemy.name + '</div>';
+                        }
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+            }
+
+            if (religions.length === 0 || religions.every(r => r.status === 'extinct')) {
+                html = '<div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">No religions established yet. Belief systems emerge naturally as civilizations grow.</div>';
+            }
+
+            religionEl.innerHTML = html;
         }
 
         // Game speed and pause controls
