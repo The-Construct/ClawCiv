@@ -19,6 +19,7 @@ import { FestivalSystem } from '../systems/Festivals.ts';
 import { ReligionSystem } from '../systems/Religion.ts';
 import { DiseaseSystem } from '../systems/Disease.ts';
 import { WonderSystem } from '../systems/Wonders.ts';
+import { TradeRouteSystem } from '../systems/TradeRoutes.ts';
 
 export interface Message {
   id: string;
@@ -92,6 +93,7 @@ export class GameEngine {
   private religionSystem: ReligionSystem;
   private diseaseSystem: DiseaseSystem;
   private wonderSystem: WonderSystem;
+  private tradeRouteSystem: TradeRouteSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -113,6 +115,7 @@ export class GameEngine {
     this.religionSystem = new ReligionSystem();
     this.diseaseSystem = new DiseaseSystem();
     this.wonderSystem = new WonderSystem();
+    this.tradeRouteSystem = new TradeRouteSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -1094,6 +1097,30 @@ export class GameEngine {
         type: 'celebration'
       });
     }
+
+    // Update trade routes
+    const tradeUpdate = this.tradeRouteSystem.updateRoutes(this.state.day);
+    for (const incident of tradeUpdate.incidents) {
+      this.addMessage({
+        id: `trade-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: incident,
+        timestamp: this.state.day,
+        type: 'trade'
+      });
+    }
+
+    // Update market prices periodically
+    if (this.state.day % 7 === 0) {
+      this.tradeRouteSystem.updateMarketPrices();
+    }
+
+    // Clean up old trade routes periodically
+    if (this.state.day % 200 === 0) {
+      this.tradeRouteSystem.cleanupOldRoutes(this.state.day);
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -1716,6 +1743,38 @@ export class GameEngine {
     return this.wonderSystem.getWonderInfo(wonderId);
   }
 
+  public getTradeRouteSystem(): TradeRouteSystem {
+    return this.tradeRouteSystem;
+  }
+
+  public getAllTradeRoutes() {
+    return this.tradeRouteSystem.getAllRoutes();
+  }
+
+  public getActiveTradeRoutes() {
+    return this.tradeRouteSystem.getActiveRoutes();
+  }
+
+  public getTradeRoutesByTribe(tribe: string) {
+    return this.tradeRouteSystem.getRoutesByTribe(tribe);
+  }
+
+  public establishRoute(fromTribe: string, toTribe: string, type: string, agreements: any[]) {
+    return this.tradeRouteSystem.establishRoute(fromTribe, toTribe, type as any, agreements);
+  }
+
+  public upgradeRoute(routeId: string) {
+    return this.tradeRouteSystem.upgradeRoute(routeId);
+  }
+
+  public getMarketPrices() {
+    return this.tradeRouteSystem.updateMarketPrices();
+  }
+
+  public getTradeStatistics() {
+    return this.tradeRouteSystem.getStatistics();
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1737,6 +1796,7 @@ export class GameEngine {
       religionSystem: this.religionSystem.serialize(),
       diseaseSystem: this.diseaseSystem.serialize(),
       wonderSystem: this.wonderSystem.serialize(),
+      tradeRouteSystem: this.tradeRouteSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1823,6 +1883,11 @@ export class GameEngine {
     // Restore wonder system
     if (data.wonderSystem) {
       this.wonderSystem.deserialize(data.wonderSystem);
+    }
+
+    // Restore trade route system
+    if (data.tradeRouteSystem) {
+      this.tradeRouteSystem.deserialize(data.tradeRouteSystem);
     }
 
     // Restore victory state

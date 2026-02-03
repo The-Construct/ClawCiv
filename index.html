@@ -1878,6 +1878,103 @@
             padding: 3px 0;
             font-size: 10px;
         }
+        .trade-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+        }
+        .trade-card {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            border: 2px solid #06b6d4;
+            transition: all 0.2s;
+        }
+        .trade-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
+        }
+        .trade-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .trade-icon {
+            font-size: 22px;
+        }
+        .trade-info {
+            flex: 1;
+        }
+        .trade-name {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .trade-type {
+            font-size: 10px;
+            color: #888;
+        }
+        .trade-status {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .trade-status.active { background: #22c55e; color: #000; }
+        .trade-status.inactive { background: #6b7280; }
+        .trade-status.embargoed { background: #ef4444; }
+        .trade-status.blocked { background: #f59e0b; }
+        .trade-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px;
+            font-size: 10px;
+            margin-top: 8px;
+        }
+        .trade-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+        }
+        .trade-stat-label {
+            color: #666;
+        }
+        .trade-stat-value {
+            font-weight: bold;
+        }
+        .trade-agreements {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #333;
+        }
+        .trade-agreement {
+            font-size: 9px;
+            padding: 2px 0;
+            color: #06b6d4;
+        }
+        .trade-income {
+            margin-top: 8px;
+            padding: 6px;
+            background: rgba(6, 182, 212, 0.1);
+            border-radius: 4px;
+            text-align: center;
+        }
+        .trade-income-value {
+            font-size: 14px;
+            font-weight: bold;
+            color: #22c55e;
+        }
+        .trade-risks {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+            font-size: 9px;
+        }
+        .trade-risk {
+            padding: 2px 6px;
+            background: #ef4444;
+            border-radius: 3px;
+        }
     </style>
 </head>
 <body>
@@ -2197,6 +2294,13 @@
         <div id="wonderInfo">
             <h2>🏛️ World Wonders</h2>
             <div class="wonder-cards" id="wonderCards">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
+
+        <div id="tradeInfo">
+            <h2>🚚 Trade Routes</h2>
+            <div class="trade-cards" id="tradeCards">
                 <!-- Filled by JavaScript -->
             </div>
         </div>
@@ -2525,6 +2629,7 @@
             updateReligionInfo();
             updateDiseaseInfo();
             updateWonderInfo();
+            updateTradeInfo();
         }
 
         // Tech tree state
@@ -3449,6 +3554,62 @@
             }
 
             wonderEl.innerHTML = html;
+        }
+
+        function updateTradeInfo() {
+            const tradeEl = document.getElementById('tradeCards');
+            if (!tradeEl) return;
+
+            const routes = engine.getActiveTradeRoutes();
+            let html = '';
+
+            for (const route of routes) {
+                html += '<div class="trade-card">';
+                html += '<div class="trade-header">';
+                html += '<span class="trade-icon">' + route.icon + '</span>';
+                html += '<div class="trade-info">';
+                html += '<div class="trade-name">' + route.name + '</div>';
+                html += '<div class="trade-type">' + route.type + ' route | Distance: ' + Math.round(route.distance) + '</div>';
+                html += '</div>';
+                html += '<span class="trade-status active">ACTIVE</span>';
+                html += '</div>';
+
+                html += '<div class="trade-stats">';
+                html += '<div class="trade-stat"><span class="trade-stat-label">Level</span><span class="trade-stat-value">' + route.level + '/5</span></div>';
+                html += '<div class="trade-stat"><span class="trade-stat-label">Risk</span><span class="trade-stat-value">' + Math.round(route.riskLevel) + '%</span></div>';
+                html += '<div class="trade-stat"><span class="trade-stat-label">Trips</span><span class="trade-stat-value">' + route.totalTrips + '</span></div>';
+                html += '<div class="trade-stat"><span class="trade-stat-label">Caravans</span><span class="trade-stat-value">' + route.caravansEnRoute + '</span></div>';
+                html += '</div>';
+
+                if (route.agreements && route.agreements.length > 0) {
+                    html += '<div class="trade-agreements">';
+                    html += '<div style="font-size: 9px; color: #888; margin-bottom: 4px;">Agreements:</div>';
+                    for (const agreement of route.agreements.slice(0, 2)) {
+                        const exportsText = agreement.exports.map(e => e.resource).join(', ');
+                        html += '<div class="trade-agreement">' + agreement.fromTribe + ' → ' + agreement.toTribe + ': ' + exportsText + '</div>';
+                    }
+                    html += '</div>';
+                }
+
+                html += '<div class="trade-income">';
+                html += '<div style="font-size: 9px; color: #888;">Daily Income</div>';
+                html += '<div class="trade-income-value">+' + route.dailyIncome + ' $CLAW</div>';
+                html += '</div>';
+
+                if (route.pirates > 0) {
+                    html += '<div class="trade-risks">';
+                    html += '<span class="trade-risk">🏴‍☠️ ' + route.pirates + ' pirate threats</span>';
+                    html += '</div>';
+                }
+
+                html += '</div>';
+            }
+
+            if (routes.length === 0) {
+                html = '<div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">No active trade routes. Tribes can establish routes for ongoing economic benefits and resource exchange.</div>';
+            }
+
+            tradeEl.innerHTML = html;
         }
 
         // Game speed and pause controls
