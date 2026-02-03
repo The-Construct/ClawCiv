@@ -4,6 +4,7 @@
 import { TokenSystem } from '../economy/Token.js';
 import { TerritorySystem } from '../systems/Territory.js';
 import { TechTree } from '../systems/TechTree.js';
+import { BuildingSystem, Building } from '../systems/Buildings.js';
 
 export interface Message {
   id: string;
@@ -50,6 +51,7 @@ export interface GameState {
   day: number;
   territories: Map<string, number[][]>;
   messages: Message[];
+  buildings: Building[];
 }
 
 export class GameEngine {
@@ -61,10 +63,12 @@ export class GameEngine {
   private tokenSystem: TokenSystem;
   private territorySystem: TerritorySystem;
   private techTrees: Map<string, TechTree>;
+  private buildingSystem: BuildingSystem;
 
   constructor() {
     this.tokenSystem = new TokenSystem();
     this.territorySystem = new TerritorySystem();
+    this.buildingSystem = new BuildingSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -137,7 +141,8 @@ export class GameEngine {
       grid,
       day: 0,
       territories: new Map(),
-      messages: []
+      messages: [],
+      buildings: []
     };
   }
 
@@ -595,6 +600,28 @@ export class GameEngine {
   public tick(): void {
     this.state.day++;
 
+    // Update buildings and apply benefits
+    const buildings = this.buildingSystem.getBuildings();
+    // Sync with state
+    this.state.buildings = buildings;
+
+    for (const building of buildings) {
+      this.buildingSystem.updateBuilding(building.id);
+
+      // Apply benefits to tribe if construction complete
+      if (building.constructionProgress >= 100) {
+        const tribeAgents = this.state.agents.filter(a => a.tribe === building.tribe && a.alive);
+        for (const [resource, amount] of Object.entries(building.benefits)) {
+          const perAgent = (amount as number) / Math.max(1, tribeAgents.length);
+          for (const agent of tribeAgents) {
+            if (resource in agent.resources) {
+              agent.resources[resource] += perAgent;
+            }
+          }
+        }
+      }
+    }
+
     // Each agent takes action
     for (const agent of this.state.agents) {
       if (!agent.alive) continue;
@@ -779,7 +806,76 @@ export class GameEngine {
 
   public getResourceBonus(tribe: string, resourceType: string): number {
     const techTree = this.techTrees.get(tribe);
-    return techTree ? techTree.getBonus(resourceType) : 1.0;
+    const techBonus = techTree ? techTree.getBonus(resourceType) : 1.0;
+
+    // Add building benefits
+    const buildingBenefits = this.buildingSystem.getTribeBenefits(tribe);
+    const buildingBonus = 1 + (buildingBenefits[resourceType] || 0) * 0.1;
+
+    return techBonus * buildingBonus;
+  }
+
+  // Building System Methods
+  public getBuildingSystem(): BuildingSystem {
+    return this.buildingSystem;
+  }
+
+  public startBuilding(tribe: string, buildingType: string, x: number, z: number): boolean {
+    const techTree = this.techTrees.get(tribe);
+    if (!techTree) return false;
+
+    const researchedTechs = techTree.getResearchedTechs().map(t => t.id);
+
+    // Calculate tribe resources
+    const tribeAgents = this.state.agents.filter(a => a.tribe === tribe && a.alive);
+    const totalResources = {
+      food: tribeAgents.reduce((sum, a) => sum + a.resources.food, 0),
+      materials: tribeAgents.reduce((sum, a) => sum + a.resources.materials, 0),
+      knowledge: tribeAgents.reduce((sum, a) => sum + (a.resources.knowledge || 0), 0)
+    };
+
+    if (!this.buildingSystem.canBuild(tribe, buildingType, totalResources, researchedTechs)) {
+      return false;
+    }
+
+    // Deduct costs from tribe
+    const type = (this.buildingSystem as any).BUILDING_TYPES[buildingType];
+    if (type) {
+      const perAgentCost = {
+        food: type.cost.food / tribeAgents.length,
+        materials: type.cost.materials / tribeAgents.length,
+        knowledge: type.cost.knowledge / tribeAgents.length
+      };
+
+      for (const agent of tribeAgents) {
+        agent.resources.food -= perAgentCost.food;
+        agent.resources.materials -= perAgentCost.materials;
+        if (agent.resources.knowledge) {
+          agent.resources.knowledge -= perAgentCost.knowledge;
+        }
+      }
+    }
+
+    const building = this.buildingSystem.startConstruction(tribe, buildingType, x, z);
+    this.state.buildings.push(building);
+
+    this.addMessage({
+      id: `build-${Date.now()}`,
+      agentId: tribe,
+      agentName: tribe,
+      tribe,
+      content: `Construction started on ${buildingType}!`,
+      timestamp: this.state.day,
+      type: 'celebration'
+    });
+
+    return true;
+  }
+
+  public getBuildings(): Building[] {
+    // Sync buildings with state
+    this.state.buildings = this.buildingSystem.getBuildings();
+    return this.state.buildings;
   }
 
   public getTerritoryStats() {

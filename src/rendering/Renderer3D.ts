@@ -3,6 +3,7 @@
 
 import * as THREE from 'three';
 import { Agent, GameState, Message } from '../engine/Game.js';
+import { Building } from '../systems/Buildings.js';
 
 interface AgentMesh extends THREE.Mesh {
   agentData: Agent;
@@ -31,6 +32,7 @@ export class GameRenderer3D {
   private territoryZones: Map<string, THREE.Mesh> = new Map();
   private particles: Particle[] = [];
   private particleMeshes: Map<string, THREE.Mesh> = new Map();
+  private buildingMeshes: Map<string, THREE.Mesh> = new Map();
   private readonly GRID_SIZE = 10;
   private readonly CELL_SIZE = 15;
   private readonly WORLD_SIZE = 1000;
@@ -474,6 +476,93 @@ export class GameRenderer3D {
     }
   }
 
+  private updateBuildings(state: GameState): void {
+    const buildings = (state as any).buildings as Building[] || [];
+
+    // Remove old building meshes that no longer exist
+    for (const [id, mesh] of this.buildingMeshes) {
+      if (!buildings.find(b => b.id === id)) {
+        this.scene.remove(mesh);
+        this.buildingMeshes.delete(id);
+      }
+    }
+
+    // Create/update building meshes
+    for (const building of buildings) {
+      let mesh = this.buildingMeshes.get(building.id);
+
+      if (!mesh) {
+        // Create building based on type
+        mesh = this.createBuildingMesh(building);
+        this.scene.add(mesh);
+        this.buildingMeshes.set(building.id, mesh);
+      }
+
+      // Update construction progress visually
+      const scale = 0.5 + (building.constructionProgress / 100) * 0.5;
+      mesh.scale.set(scale, scale, scale);
+
+      // Show construction effect if not complete
+      if (building.constructionProgress < 100) {
+        (mesh.material as THREE.MeshStandardMaterial).emissive = new THREE.Color(0xffff00);
+        (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0.3;
+      } else {
+        (mesh.material as THREE.MeshStandardMaterial).emissive = new THREE.Color(0x000000);
+        (mesh.material as THREE.MeshStandardMaterial).emissiveIntensity = 0;
+      }
+    }
+  }
+
+  private createBuildingMesh(building: Building): THREE.Mesh {
+    const tribeColor = this.getTribeColor(building.tribe);
+
+    // Different building types have different shapes
+    let geometry: THREE.BufferGeometry;
+
+    switch (building.type) {
+      case 'farm':
+        geometry = new THREE.BoxGeometry(8, 4, 8);
+        break;
+      case 'mine':
+        geometry = new THREE.ConeGeometry(5, 8, 4);
+        break;
+      case 'library':
+      case 'university':
+        geometry = new THREE.CylinderGeometry(5, 6, 10, 8);
+        break;
+      case 'market':
+      case 'temple':
+        geometry = new THREE.OctahedronGeometry(6);
+        break;
+      case 'granary':
+      case 'workshop':
+        geometry = new THREE.BoxGeometry(10, 6, 10);
+        break;
+      case 'monument':
+      case 'wonder':
+        geometry = new THREE.DodecahedronGeometry(8);
+        break;
+      case 'fortress':
+        geometry = new THREE.BoxGeometry(12, 8, 12);
+        break;
+      default:
+        geometry = new THREE.BoxGeometry(6, 6, 6);
+    }
+
+    const material = new THREE.MeshStandardMaterial({
+      color: tribeColor,
+      roughness: 0.7,
+      metalness: 0.3
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(building.x, 3, building.z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+
+    return mesh;
+  }
+
   private updateBubbles(state: GameState): void {
     // Clear old bubbles
     const existingBubbles = this.bubbleContainer.querySelectorAll('.agent-bubble');
@@ -545,6 +634,9 @@ export class GameRenderer3D {
 
     // Update territory visualization
     this.updateTerritory(state);
+
+    // Update buildings
+    this.updateBuildings(state);
 
     // Update minimap
     this.updateMinimap(state);
@@ -1048,9 +1140,13 @@ export class GameRenderer3D {
     for (const zone of this.territoryZones.values()) {
       this.scene.remove(zone);
     }
+    for (const mesh of this.buildingMeshes.values()) {
+      this.scene.remove(mesh);
+    }
     this.agentMeshes.clear();
     this.resourceNodes.clear();
     this.territoryZones.clear();
+    this.buildingMeshes.clear();
     this.particleMeshes.clear();
     this.particles = [];
     this.renderer.dispose();
