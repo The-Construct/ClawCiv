@@ -2279,6 +2279,178 @@
             font-size: 9px;
             color: #f59e0b;
         }
+        .inventory-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            padding: 12px;
+            background: #0f0f1a;
+            border-radius: 6px;
+            border: 2px solid #06b6d4;
+        }
+        .inventory-slot {
+            aspect-ratio: 1;
+            background: #1a1a2e;
+            border: 2px solid #333;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .inventory-slot:hover {
+            border-color: #06b6d4;
+            transform: scale(1.05);
+        }
+        .inventory-slot.empty {
+            border-color: #222;
+            cursor: default;
+        }
+        .inventory-slot.empty:hover {
+            transform: none;
+        }
+        .inventory-slot-icon {
+            font-size: 24px;
+        }
+        .inventory-slot-quantity {
+            position: absolute;
+            bottom: 2px;
+            right: 2px;
+            font-size: 9px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 1px 4px;
+            border-radius: 2px;
+            color: #fff;
+        }
+        .equipment-section {
+            display: flex;
+            gap: 12px;
+        }
+        .equipment-panel {
+            flex: 1;
+            background: #0f0f1a;
+            padding: 12px;
+            border-radius: 6px;
+            border: 2px solid #8b5cf6;
+        }
+        .equipment-slots {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .equipment-slot {
+            background: #1a1a2e;
+            border: 2px solid #333;
+            border-radius: 4px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .equipment-slot:hover {
+            border-color: #8b5cf6;
+        }
+        .equipment-slot.empty {
+            opacity: 0.5;
+        }
+        .equipment-slot-label {
+            font-size: 9px;
+            color: #888;
+            min-width: 60px;
+        }
+        .equipment-slot-icon {
+            font-size: 20px;
+        }
+        .equipment-slot-info {
+            flex: 1;
+        }
+        .equipment-slot-name {
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .equipment-slot-stats {
+            font-size: 8px;
+            color: #888;
+        }
+        .item-tooltip {
+            position: absolute;
+            background: #1a1a2e;
+            border: 2px solid #06b6d4;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            z-index: 1000;
+            pointer-events: none;
+            min-width: 150px;
+        }
+        .item-rarity {
+            font-size: 8px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .rarity-common { color: #9ca3af; }
+        .rarity-uncommon { color: #22c55e; }
+        .rarity-rare { color: #3b82f6; }
+        .rarity-epic { color: #a855f7; }
+        .rarity-legendary { color: #f59e0b; animation: legendary-glow 2s infinite; }
+        @keyframes legendary-glow {
+            0%, 100% { text-shadow: 0 0 5px #f59e0b; }
+            50% { text-shadow: 0 0 15px #f59e0b; }
+        }
+        .item-stats-list {
+            margin-top: 4px;
+            font-size: 9px;
+            color: #aaa;
+        }
+        .item-stat {
+            padding: 2px 0;
+        }
+        .item-stat.positive { color: #22c55e; }
+        .item-stat.negative { color: #ef4444; }
+        .crafting-section {
+            background: #0f0f1a;
+            padding: 12px;
+            border-radius: 6px;
+            border: 2px solid #f59e0b;
+        }
+        .crafting-recipes {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 8px;
+        }
+        .crafting-recipe {
+            background: #1a1a2e;
+            padding: 8px;
+            border-radius: 4px;
+            border: 2px solid #333;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .crafting-recipe:hover {
+            border-color: #f59e0b;
+        }
+        .recipe-name {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .recipe-materials {
+            font-size: 9px;
+            color: #888;
+        }
+        .recipe-cost {
+            font-size: 9px;
+            color: #f59e0b;
+        }
     </style>
 </head>
 <body>
@@ -2629,6 +2801,13 @@
                 <!-- Filled by JavaScript -->
             </div>
         </div>
+
+        <div id="inventoryInfo">
+            <h2>🎒 Agent Inventory</h2>
+            <div class="inventory-container" id="inventoryContainer">
+                <div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">Select an agent to view their inventory</div>
+            </div>
+        </div>
     </div>
 
     <script type="module">
@@ -2958,6 +3137,7 @@
             updateMercenaryInfo();
             updatePopulationInfo();
             updateQuestInfo();
+            updateInventoryInfo();
         }
 
         // Tech tree state
@@ -2975,6 +3155,9 @@
 
         // Agent panel functions
         function showAgentPanel(agent) {
+            // Set selected agent for inventory view
+            selectedAgentForInventory = agent.id;
+
             document.getElementById('agentPanelName').textContent = agent.name;
             document.getElementById('agentPanelSpecialization').textContent = agent.specialization || 'None';
             document.getElementById('agentLevel').textContent = agent.level || 1;
@@ -4151,6 +4334,136 @@
 
             questEl.innerHTML = html;
         }
+
+        let selectedAgentForInventory = null;
+
+        function updateInventoryInfo() {
+            const invEl = document.getElementById('inventoryContainer');
+            if (!invEl) return;
+
+            if (!selectedAgentForInventory) {
+                invEl.innerHTML = '<div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">Select an agent to view their inventory</div>';
+                return;
+            }
+
+            const inv = engine.getAgentInventory(selectedAgentForInventory);
+            if (!inv) {
+                invEl.innerHTML = '<div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">No inventory found</div>';
+                return;
+            }
+
+            const agent = engine.getState().agents.find(a => a.id === selectedAgentForInventory);
+            const agentName = agent ? agent.name : 'Unknown Agent';
+
+            let html = '<div style="display: flex; gap: 12px;">';
+
+            // Equipment panel
+            html += '<div class="equipment-panel">';
+            html += '<div style="font-weight: bold; margin-bottom: 8px; font-size: 12px;">⚔️ Equipment</div>';
+            html += '<div class="equipment-slots">';
+
+            const slotLabels = {
+                mainhand: '⚔️ Main Hand',
+                offhand: '🛡️ Off Hand',
+                armor: '👕 Armor',
+                accessory1: '💍 Accessory 1',
+                accessory2: '💍 Accessory 2',
+                tool: '🔧 Tool'
+            };
+
+            for (const [slot, item] of Object.entries(inv.equipment)) {
+                const isEmpty = !item;
+                html += '<div class="equipment-slot ' + (isEmpty ? 'empty' : '') + '">';
+
+                if (item) {
+                    html += '<span class="equipment-slot-label">' + slotLabels[slot] + '</span>';
+                    html += '<span class="equipment-slot-icon">' + item.icon + '</span>';
+                    html += '<div class="equipment-slot-info">';
+                    html += '<div class="equipment-slot-name">' + item.name + '</div>';
+                    html += '<div class="equipment-slot-stats">';
+                    if (item.durability !== undefined && item.maxDurability) {
+                        const durPct = (item.durability / item.maxDurability) * 100;
+                        html += 'Durability: ' + item.durability + '/' + item.maxDurability + ' (' + Math.floor(durPct) + '%)';
+                    }
+                    html += '</div>';
+                    html += '</div>';
+                } else {
+                    html += '<span class="equipment-slot-label">' + slotLabels[slot] + '</span>';
+                    html += '<span style="color: #666;">Empty</span>';
+                }
+
+                html += '</div>';
+            }
+
+            html += '</div>'; // End equipment slots
+            html += '</div>'; // End equipment panel
+
+            // Inventory grid
+            html += '<div style="flex: 1;">';
+            html += '<div style="font-weight: bold; margin-bottom: 8px; font-size: 12px;">🎒 Inventory (' + inv.usedSlots + '/' + inv.maxSlots + ')</div>';
+            html += '<div class="inventory-grid">';
+
+            for (let i = 0; i < inv.inventory.length; i++) {
+                const slot = inv.inventory[i];
+                const isEmpty = !slot.item;
+
+                html += '<div class="inventory-slot ' + (isEmpty ? 'empty' : '') + '">';
+
+                if (slot.item && slot.quantity > 0) {
+                    html += '<span class="inventory-slot-icon">' + slot.item.icon + '</span>';
+                    if (slot.quantity > 1) {
+                        html += '<span class="inventory-slot-quantity">' + slot.quantity + '</span>';
+                    }
+                } else {
+                    html += '<span style="color: #333;">+</span>';
+                }
+
+                html += '</div>';
+            }
+
+            html += '</div>'; // End inventory grid
+            html += '</div>'; // End inventory column
+
+            html += '</div>'; // End main container
+
+            // Crafting section
+            html += '<div class="crafting-section">';
+            html += '<div style="font-weight: bold; margin-bottom: 8px; font-size: 12px;">🔨 Crafting</div>';
+            html += '<div class="crafting-recipes">';
+
+            const recipes = [
+                { id: 'sword_basic', name: 'Iron Sword', materials: 'Iron Ingot x3, Wood Plank x1', cost: '5 ticks' },
+                { id: 'armor_basic', name: 'Iron Armor', materials: 'Iron Ingot x5, Leather Strip x2', cost: '8 ticks' },
+                { id: 'potion_health', name: 'Health Potion', materials: 'Herb Bundle x2', cost: '2 ticks' },
+                { id: 'tool_pickaxe', name: 'Mining Pickaxe', materials: 'Iron Ingot x2, Wood Plank x2', cost: '4 ticks' },
+                { id: 'ring_lucky', name: 'Lucky Ring', materials: 'Gem Shard x1, Iron Ingot x1', cost: '6 ticks' }
+            ];
+
+            for (const recipe of recipes) {
+                html += '<div class="crafting-recipe" onclick="craftItem(\'' + recipe.id + '\')">';
+                html += '<div class="recipe-name">🔨 ' + recipe.name + '</div>';
+                html += '<div class="recipe-materials">' + recipe.materials + '</div>';
+                html += '<div class="recipe-cost">' + recipe.cost + '</div>';
+                html += '</div>';
+            }
+
+            html += '</div>'; // End crafting recipes
+            html += '</div>'; // End crafting section
+
+            invEl.innerHTML = html;
+        }
+
+        window.craftItem = function(recipeId) {
+            if (!selectedAgentForInventory) return;
+
+            const success = engine.craftAgentItem(selectedAgentForInventory, recipeId);
+            if (success) {
+                showNotification('success', 'Crafting Complete', 'Item crafted successfully!', 'System');
+                updateInventoryInfo();
+            } else {
+                showNotification('error', 'Crafting Failed', 'Missing materials or requirements', 'System');
+            }
+        };
 
         // Game speed and pause controls
         let gameSpeed = 3000;

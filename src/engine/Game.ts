@@ -22,6 +22,7 @@ import { WonderSystem } from '../systems/Wonders.ts';
 import { TradeRouteSystem } from '../systems/TradeRoutes.ts';
 import { MercenarySystem } from '../systems/Mercenaries.ts';
 import { PopulationSystem } from '../systems/Population.ts';
+import { InventorySystem } from '../systems/Inventory.ts';
 
 export interface Message {
   id: string;
@@ -98,6 +99,7 @@ export class GameEngine {
   private tradeRouteSystem: TradeRouteSystem;
   private mercenarySystem: MercenarySystem;
   private populationSystem: PopulationSystem;
+  private inventorySystem: InventorySystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -122,6 +124,7 @@ export class GameEngine {
     this.tradeRouteSystem = new TradeRouteSystem();
     this.mercenarySystem = new MercenarySystem();
     this.populationSystem = new PopulationSystem();
+    this.inventorySystem = new InventorySystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -199,6 +202,11 @@ export class GameEngine {
 
         // Register agent with population system
         this.populationSystem.registerAgent(id, tribe, 0);
+
+        // Create inventory with starting items
+        const startingItems = this.inventorySystem.generateItem(1, 'common', 'tool');
+        const startingConsumable = this.inventorySystem.generateItem(1, 'common', 'consumable');
+        this.inventorySystem.createInventory(id, [startingItems, startingConsumable]);
       }
     }
 
@@ -1970,6 +1978,33 @@ export class GameEngine {
     return this.populationSystem.getTrends(tribe, days);
   }
 
+  // Inventory System getters
+  public getInventorySystem(): InventorySystem {
+    return this.inventorySystem;
+  }
+
+  public getAgentInventory(agentId: string) {
+    return this.inventorySystem.getInventory(agentId);
+  }
+
+  public equipAgentItem(agentId: string, itemId: string, slot: string): boolean {
+    return this.inventorySystem.equipItem(agentId, itemId, slot as any);
+  }
+
+  public unequipAgentItem(agentId: string, slot: string): boolean {
+    return this.inventorySystem.unequipItem(agentId, slot as any);
+  }
+
+  public craftAgentItem(agentId: string, recipeId: string): boolean {
+    const agent = this.state.agents.find(a => a.id === agentId);
+    if (!agent) return false;
+    return this.inventorySystem.craftItem(agentId, recipeId, agent);
+  }
+
+  public useAgentConsumable(agentId: string, itemId: string) {
+    return this.inventorySystem.useConsumable(agentId, itemId);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1994,6 +2029,7 @@ export class GameEngine {
       tradeRouteSystem: this.tradeRouteSystem.serialize(),
       mercenarySystem: this.mercenarySystem.serialize(),
       populationSystem: this.populationSystem.serialize(),
+      inventorySystem: this.inventorySystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -2095,6 +2131,11 @@ export class GameEngine {
     // Restore population system
     if (data.populationSystem) {
       this.populationSystem.deserialize(data.populationSystem);
+    }
+
+    // Restore inventory system
+    if (data.inventorySystem) {
+      this.inventorySystem.deserialize(data.inventorySystem);
     }
 
     // Restore victory state
