@@ -11,6 +11,7 @@ import { QuestSystem } from '../systems/Quests.ts';
 import { DiplomacySystem } from '../systems/Diplomacy.ts';
 import { SeasonSystem } from '../systems/Seasons.ts';
 import { TribeConfigSystem } from '../systems/TribeConfig.ts';
+import { OrganizationSystem } from '../systems/Organizations.ts';
 
 export interface Message {
   id: string;
@@ -76,6 +77,7 @@ export class GameEngine {
   private diplomacySystem: DiplomacySystem;
   private seasonSystem: SeasonSystem;
   private tribeConfigSystem: TribeConfigSystem;
+  private organizationSystem: OrganizationSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -89,6 +91,7 @@ export class GameEngine {
     this.diplomacySystem = new DiplomacySystem();
     this.seasonSystem = new SeasonSystem();
     this.tribeConfigSystem = new TribeConfigSystem();
+    this.organizationSystem = new OrganizationSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -829,6 +832,22 @@ export class GameEngine {
         }
       }
     }
+
+    // Update organizations and check for org events (every 20 days)
+    if (this.state.day % 20 === 0) {
+      const orgEvents = this.organizationSystem.updateOrganizations(this.state.day);
+      for (const event of orgEvents.events) {
+        this.addMessage({
+          id: `org-${Date.now()}`,
+          agentId: 'system',
+          agentName: 'System',
+          tribe: 'Global',
+          content: event,
+          timestamp: this.state.day,
+          type: 'celebration'
+        });
+      }
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -858,6 +877,7 @@ export class GameEngine {
       primaryAction = 'farming';
       this.tokenSystem.earnTokens(agent.id, 2, 'farming');
       this.grantExperience(agent, 2);
+      this.organizationSystem.updateOrgStats(agent.id, 'farming', 'food');
     }
     if (agent.skills.includes('mining')) {
       const materialsModifier = this.seasonSystem.getResourceModifier('materials');
@@ -867,6 +887,7 @@ export class GameEngine {
       primaryAction = 'mining';
       this.tokenSystem.earnTokens(agent.id, 3, 'mining');
       this.grantExperience(agent, 3);
+      this.organizationSystem.updateOrgStats(agent.id, 'mining', 'materials');
     }
     if (agent.skills.includes('research')) {
       const knowledgeModifier = this.seasonSystem.getResourceModifier('knowledge');
@@ -876,6 +897,7 @@ export class GameEngine {
       primaryAction = 'research';
       this.tokenSystem.earnTokens(agent.id, 5, 'research');
       this.grantExperience(agent, 5);
+      this.organizationSystem.updateOrgStats(agent.id, 'research', 'knowledge');
     }
 
     // Passive regeneration for all agents (keeps game going longer)
@@ -1206,6 +1228,18 @@ export class GameEngine {
     return this.tribeConfigSystem.getTribeConfig(tribe);
   }
 
+  public getOrganizationSystem(): OrganizationSystem {
+    return this.organizationSystem;
+  }
+
+  public getAllOrganizations() {
+    return this.organizationSystem.getAllOrganizations();
+  }
+
+  public createOrganization(name: string, type: string, tribe: string, leaderId: string, description: string, foundingMembers: string[]) {
+    return this.organizationSystem.createOrganization(name, type as any, tribe, leaderId, description, foundingMembers);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1219,6 +1253,7 @@ export class GameEngine {
       diplomacySystem: this.diplomacySystem.serialize(),
       seasonSystem: this.seasonSystem.serialize(),
       tribeConfigSystem: this.tribeConfigSystem.serialize(),
+      organizationSystem: this.organizationSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1265,6 +1300,11 @@ export class GameEngine {
     // Restore tribe config system
     if (data.tribeConfigSystem) {
       this.tribeConfigSystem.deserialize(data.tribeConfigSystem);
+    }
+
+    // Restore organization system
+    if (data.organizationSystem) {
+      this.organizationSystem.deserialize(data.organizationSystem);
     }
 
     // Restore victory state
