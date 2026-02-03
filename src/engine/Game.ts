@@ -5,6 +5,7 @@ import { TokenSystem } from '../economy/Token.js';
 import { TerritorySystem } from '../systems/Territory.js';
 import { TechTree } from '../systems/TechTree.js';
 import { BuildingSystem, Building } from '../systems/Buildings.js';
+import { AchievementSystem } from '../systems/Achievements.ts';
 
 export interface Message {
   id: string;
@@ -64,11 +65,15 @@ export class GameEngine {
   private territorySystem: TerritorySystem;
   private techTrees: Map<string, TechTree>;
   private buildingSystem: BuildingSystem;
+  private achievementSystem: AchievementSystem;
+  private victoryAchieved: boolean = false;
 
   constructor() {
     this.tokenSystem = new TokenSystem();
     this.territorySystem = new TerritorySystem();
     this.buildingSystem = new BuildingSystem();
+    this.achievementSystem = new AchievementSystem();
+    this.achievementSystem.setGameEngine(this);
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -600,6 +605,37 @@ export class GameEngine {
   public tick(): void {
     this.state.day++;
 
+    // Check achievements and victory (only if not already won)
+    if (!this.victoryAchieved) {
+      const newlyUnlocked = this.achievementSystem.checkAchievements(this);
+      for (const achievement of newlyUnlocked) {
+        this.addMessage({
+          id: `achievement-${achievement.id}`,
+          agentId: 'system',
+          agentName: 'System',
+          tribe: 'Global',
+          content: `🏆 Achievement Unlocked: ${achievement.icon} ${achievement.name} - ${achievement.description}`,
+          timestamp: this.state.day,
+          type: 'celebration'
+        });
+      }
+
+      // Check victory conditions
+      const victory = this.achievementSystem.checkVictory(this);
+      if (victory && victory.victory) {
+        this.victoryAchieved = true;
+        this.addMessage({
+          id: `victory-${Date.now()}`,
+          agentId: 'system',
+          agentName: 'System',
+          tribe: 'Global',
+          content: `🎉 VICTORY! ${victory.reason}`,
+          timestamp: this.state.day,
+          type: 'celebration'
+        });
+      }
+    }
+
     // Update buildings and apply benefits
     const buildings = this.buildingSystem.getBuildings();
     // Sync with state
@@ -887,13 +923,58 @@ export class GameEngine {
     };
   }
 
+  // Achievement System Helpers
+  public getCombatCount(): number {
+    return this.state.messages.filter(m => m.type === 'combat').length;
+  }
+
+  public getTribeAgentCount(tribe: string): number {
+    return this.state.agents.filter(a => a.tribe === tribe && a.alive).length;
+  }
+
+  public getTribeTotalResources(tribe: string): { food: number; materials: number; knowledge: number; socialCapital: number } {
+    const agents = this.state.agents.filter(a => a.tribe === tribe && a.alive);
+    return {
+      food: agents.reduce((sum, a) => sum + a.resources.food, 0),
+      materials: agents.reduce((sum, a) => sum + a.resources.materials, 0),
+      knowledge: agents.reduce((sum, a) => sum + (a.resources.knowledge || 0), 0),
+      socialCapital: agents.reduce((sum, a) => sum + a.resources.socialCapital, 0)
+    };
+  }
+
+  public getResearchedTechCount(tribe: string): number {
+    const techTree = this.techTrees.get(tribe);
+    return techTree ? techTree.getResearchedTechs().length : 0;
+  }
+
+  public getTotalBuildingCount(tribe: string): number {
+    return this.buildingSystem.getBuildingsByTribe(tribe).filter(b => b.constructionProgress >= 100).length;
+  }
+
+  public getDay(): number {
+    return this.state.day;
+  }
+
+  public getAllAliveTribes(): string[] {
+    const tribes = new Set(this.state.agents.filter(a => a.alive).map(a => a.tribe));
+    return Array.from(tribes);
+  }
+
+  public getAchievementSystem(): AchievementSystem {
+    return this.achievementSystem;
+  }
+
+  public isVictoryAchieved(): boolean {
+    return this.victoryAchieved;
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
       state: this.state,
       tokenSystem: this.tokenSystem.serialize(),
       territorySystem: this.territorySystem.serialize(),
-      techTrees: Array.from(this.techrees.entries()).map(([tribe, tree]) => [tribe, tree.serialize()]),
+      techTrees: Array.from(this.techTrees.entries()).map(([tribe, tree]) => [tribe, tree.serialize()]),
       buildingSystem: this.buildingSystem.serialize()
     };
   }
