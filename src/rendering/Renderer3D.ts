@@ -98,22 +98,181 @@ export class GameRenderer3D {
     this.directionalLight.shadow.mapSize.height = 2048;
     this.scene.add(this.directionalLight);
 
-    // Large ground plane (no grid)
+    // Large ground plane with improved texture
     const groundGeometry = new THREE.PlaneGeometry(this.WORLD_SIZE, this.WORLD_SIZE);
+
+    // Create procedural ground texture
+    const groundCanvas = document.createElement('canvas');
+    groundCanvas.width = 512;
+    groundCanvas.height = 512;
+    const groundCtx = groundCanvas.getContext('2d')!;
+
+    // Base ground color
+    const gradient = groundCtx.createLinearGradient(0, 0, 512, 512);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(0.5, '#16213e');
+    gradient.addColorStop(1, '#0f3460');
+    groundCtx.fillStyle = gradient;
+    groundCtx.fillRect(0, 0, 512, 512);
+
+    // Add grid pattern
+    groundCtx.strokeStyle = 'rgba(0, 255, 136, 0.05)';
+    groundCtx.lineWidth = 1;
+    for (let i = 0; i < 512; i += 32) {
+      groundCtx.beginPath();
+      groundCtx.moveTo(i, 0);
+      groundCtx.lineTo(i, 512);
+      groundCtx.stroke();
+      groundCtx.beginPath();
+      groundCtx.moveTo(0, i);
+      groundCtx.lineTo(512, i);
+      groundCtx.stroke();
+    }
+
+    // Add subtle noise texture
+    for (let i = 0; i < 5000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      groundCtx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.02})`;
+      groundCtx.fillRect(x, y, 2, 2);
+    }
+
+    // Add decorative elements
+    groundCtx.fillStyle = 'rgba(0, 255, 136, 0.03)';
+    for (let i = 0; i < 20; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      const size = Math.random() * 30 + 10;
+      groundCtx.beginPath();
+      groundCtx.arc(x, y, size, 0, Math.PI * 2);
+      groundCtx.fill();
+    }
+
+    const groundTexture = new THREE.CanvasTexture(groundCanvas);
+    groundTexture.wrapS = THREE.RepeatWrapping;
+    groundTexture.wrapT = THREE.RepeatWrapping;
+    groundTexture.repeat.set(8, 8);
+
     const groundMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0f0f1a,
-      roughness: 0.8
+      map: groundTexture,
+      color: 0xffffff,
+      roughness: 0.9,
+      metalness: 0.1
     });
+
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.5;
     ground.receiveShadow = true;
     this.scene.add(ground);
 
+    // Add ambient decorations (trees, rocks)
+    this.createEnvironmentDetails();
+
     // Create overlay containers
     this.createBubbleContainer();
     this.createNameContainer();
     this.createMinimap();
+  }
+
+  private createEnvironmentDetails(): void {
+    // Create scattered trees/rocks across the map
+    const decorations = 150;
+
+    for (let i = 0; i < decorations; i++) {
+      const x = (Math.random() - 0.5) * this.WORLD_SIZE * 0.8;
+      const z = (Math.random() - 0.5) * this.WORLD_SIZE * 0.8;
+
+      // Avoid tribe starting areas
+      const tribeCenters = [
+        { x: -350, z: -350 },
+        { x: 350, z: -350 },
+        { x: 0, z: 350 }
+      ];
+
+      let tooClose = false;
+      for (const center of tribeCenters) {
+        const dist = Math.sqrt(Math.pow(x - center.x, 2) + Math.pow(z - center.z, 2));
+        if (dist < 100) {
+          tooClose = true;
+          break;
+        }
+      }
+
+      if (tooClose) continue;
+
+      const type = Math.random();
+      if (type < 0.6) {
+        // Tree
+        this.createTree(x, z);
+      } else if (type < 0.85) {
+        // Rock
+        this.createRock(x, z);
+      } else {
+        // Small decorative element
+        this.createDecoration(x, z);
+      }
+    }
+  }
+
+  private createTree(x: number, z: number): void {
+    const group = new THREE.Group();
+
+    // Trunk
+    const trunkGeometry = new THREE.CylinderGeometry(0.5, 0.7, 4, 8);
+    const trunkMaterial = new THREE.MeshStandardMaterial({
+      color: 0x4a3728,
+      roughness: 0.9
+    });
+    const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+    trunk.position.y = 2;
+    trunk.castShadow = true;
+    group.add(trunk);
+
+    // Foliage (multiple layers)
+    const foliageColors = [0x228b22, 0x2e8b57, 0x32cd32];
+    for (let i = 0; i < 3; i++) {
+      const foliageGeometry = new THREE.ConeGeometry(3 - i * 0.5, 4 - i * 0.5, 8);
+      const foliageMaterial = new THREE.MeshStandardMaterial({
+        color: foliageColors[i],
+        roughness: 0.8
+      });
+      const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+      foliage.position.y = 4 + i * 2;
+      foliage.castShadow = true;
+      group.add(foliage);
+    }
+
+    group.position.set(x, 0, z);
+    const scale = 0.5 + Math.random() * 0.5;
+    group.scale.set(scale, scale, scale);
+    this.scene.add(group);
+  }
+
+  private createRock(x: number, z: number): void {
+    const rockGeometry = new THREE.DodecahedronGeometry(1 + Math.random(), 0);
+    const rockMaterial = new THREE.MeshStandardMaterial({
+      color: 0x696969,
+      roughness: 0.9
+    });
+    const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+    rock.position.set(x, 0.5, z);
+    rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    rock.castShadow = true;
+    rock.receiveShadow = true;
+    this.scene.add(rock);
+  }
+
+  private createDecoration(x: number, z: number): void {
+    // Small decorative elements like grass tufts, flowers, etc.
+    const geometry = new THREE.ConeGeometry(0.3, 1, 4);
+    const material = new THREE.MeshStandardMaterial({
+      color: Math.random() > 0.5 ? 0x90ee90 : 0xffb6c1,
+      roughness: 0.8
+    });
+    const decoration = new THREE.Mesh(geometry, material);
+    decoration.position.set(x, 0.5, z);
+    this.scene.add(decoration);
   }
 
   private createMinimap(): void {
@@ -352,28 +511,53 @@ export class GameRenderer3D {
     canvas.height = 64;
     const ctx = canvas.getContext('2d')!;
 
-    // Draw emoji character based on tribe
-    const emojis = {
-      'Alpha': '👤',
-      'Beta': '🧙',
-      'Gamma': '👽'
+    // Draw improved character based on tribe
+    const colors = {
+      'Alpha': { main: '#ff6b6b', dark: '#c92a2a', light: '#ffa8a8' },
+      'Beta': { main: '#4ecdc4', dark: '#0ca678', light: '#96f2d7' },
+      'Gamma': { main: '#ffe66d', dark: '#fab005', light: '#ffec99' }
     };
 
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(0, 0, 64, 64);
+    const color = colors[tribe as keyof typeof colors] || colors['Alpha'];
 
-    ctx.font = '48px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    // Background (transparent)
+    ctx.clearRect(0, 0, 64, 64);
+
+    // Draw character body (improved pixel art style)
+    ctx.fillStyle = color.dark;
+    ctx.fillRect(24, 40, 16, 16); // legs
+    ctx.fillRect(20, 28, 24, 16); // body
+
+    // Draw head
+    ctx.fillStyle = color.main;
+    ctx.fillRect(22, 12, 20, 18);
+
+    // Draw eyes
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(26, 16, 5, 5);
+    ctx.fillRect(33, 16, 5, 5);
+
+    // Draw pupils
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(28, 17, 2, 3);
+    ctx.fillRect(34, 17, 2, 3);
+
+    // Draw arms
+    ctx.fillStyle = color.main;
+    ctx.fillRect(14, 30, 8, 12); // left arm
+    ctx.fillRect(42, 30, 8, 12); // right arm
 
     // Add glow effect
-    ctx.shadowColor = this.getTribeColor(tribe);
-    ctx.shadowBlur = 10;
-
-    ctx.fillText(emojis[tribe as keyof typeof emojis] || '👤', 32, 32);
+    ctx.shadowColor = color.main;
+    ctx.shadowBlur = 8;
+    ctx.strokeStyle = color.light;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(14, 12, 36, 44);
 
     const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = false;
+    texture.needsUpdate = true;
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
     return texture;
   }
 
