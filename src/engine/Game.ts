@@ -23,6 +23,7 @@ import { TradeRouteSystem } from '../systems/TradeRoutes.ts';
 import { MercenarySystem } from '../systems/Mercenaries.ts';
 import { PopulationSystem } from '../systems/Population.ts';
 import { InventorySystem } from '../systems/Inventory.ts';
+import { WeatherSystem } from '../systems/Weather.ts';
 
 export interface Message {
   id: string;
@@ -100,6 +101,7 @@ export class GameEngine {
   private mercenarySystem: MercenarySystem;
   private populationSystem: PopulationSystem;
   private inventorySystem: InventorySystem;
+  private weatherSystem: WeatherSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -125,6 +127,7 @@ export class GameEngine {
     this.mercenarySystem = new MercenarySystem();
     this.populationSystem = new PopulationSystem();
     this.inventorySystem = new InventorySystem();
+    this.weatherSystem = new WeatherSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -1257,6 +1260,22 @@ export class GameEngine {
     if (this.state.day % 100 === 0) {
       this.populationSystem.cleanup(this.state.day);
     }
+
+    // Update weather system
+    const weatherEvents = this.weatherSystem.updateWeather(this.state.day);
+    for (const weather of weatherEvents) {
+      if (weather.severity >= 6) {
+        this.addMessage({
+          id: `weather-${Date.now()}`,
+          agentId: 'system',
+          agentName: 'Weather Service',
+          tribe: 'Global',
+          content: `${weather.icon} Weather Alert: ${weather.name} - ${weather.description}`,
+          timestamp: this.state.day,
+          type: weather.severity >= 8 ? 'combat' : 'chat'
+        });
+      }
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -2005,6 +2024,43 @@ export class GameEngine {
     return this.inventorySystem.useConsumable(agentId, itemId);
   }
 
+  // Weather System getters
+  public getWeatherSystem(): WeatherSystem {
+    return this.weatherSystem;
+  }
+
+  public getDetailedWeather() {
+    return this.weatherSystem.getCurrentWeather();
+  }
+
+  public getWeatherSeason() {
+    return this.weatherSystem.getCurrentSeason();
+  }
+
+  public getWeatherEffects() {
+    return this.weatherSystem.getWeatherEffects();
+  }
+
+  public getTerritoryWeather(tribe: string) {
+    return this.weatherSystem.getTerritoryWeather(tribe);
+  }
+
+  public getWeatherForecast(days: number = 7) {
+    return this.weatherSystem.getForecast(days);
+  }
+
+  public getWeatherAlerts() {
+    return this.weatherSystem.getActiveAlerts();
+  }
+
+  public getTemperature(tribe: string) {
+    return this.weatherSystem.getTemperature(tribe);
+  }
+
+  public getWeatherSeasonDescription() {
+    return this.weatherSystem.getSeasonDescription();
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -2030,6 +2086,7 @@ export class GameEngine {
       mercenarySystem: this.mercenarySystem.serialize(),
       populationSystem: this.populationSystem.serialize(),
       inventorySystem: this.inventorySystem.serialize(),
+      weatherSystem: this.weatherSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -2136,6 +2193,11 @@ export class GameEngine {
     // Restore inventory system
     if (data.inventorySystem) {
       this.inventorySystem.deserialize(data.inventorySystem);
+    }
+
+    // Restore weather system
+    if (data.weatherSystem) {
+      this.weatherSystem.deserialize(data.weatherSystem);
     }
 
     // Restore victory state
