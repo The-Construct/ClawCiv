@@ -903,6 +903,91 @@
             padding: 20px;
             font-size: 12px;
         }
+        #diplomacy {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #ec4899;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        #diplomacy h2 {
+            color: #ec4899;
+            margin: 0 0 15px 0;
+            font-size: 16px;
+        }
+        .diplomacy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .tribe-diplomacy {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+        .tribe-diplomacy h3 {
+            color: #ec4899;
+            margin: 0 0 10px 0;
+            font-size: 13px;
+        }
+        .relationship-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #222;
+        }
+        .relationship-item:last-child {
+            border-bottom: none;
+        }
+        .relationship-name {
+            font-size: 12px;
+            color: #888;
+        }
+        .relationship-status {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .status-neutral {
+            background: #6b7280;
+            color: #fff;
+        }
+        .status-friendly {
+            background: #22c55e;
+            color: #000;
+        }
+        .status-allied {
+            background: #3b82f6;
+            color: #fff;
+        }
+        .status-unfriendly {
+            background: #f59e0b;
+            color: #000;
+        }
+        .status-hostile {
+            background: #ef4444;
+            color: #fff;
+        }
+        .status-war {
+            background: #dc2626;
+            color: #fff;
+        }
+        .agreement-tags {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+        .agreement-tag {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            background: #8b5cf6;
+            color: #fff;
+        }
     </style>
 </head>
 <body>
@@ -1133,6 +1218,13 @@
             <h2>📋 Active Quests</h2>
             <div class="quest-list" id="questList">
                 <div class="no-quests">Click on an agent to assign quests</div>
+            </div>
+        </div>
+
+        <div id="diplomacy">
+            <h2>🌐 Tribe Diplomacy</h2>
+            <div class="diplomacy-grid" id="diplomacyGrid">
+                <div style="text-align: center; color: #666; padding: 20px;">Loading...</div>
             </div>
         </div>
     </div>
@@ -1450,6 +1542,7 @@
             updateBuildings();
             updateActiveEvents();
             updateQuests();
+            updateDiplomacy();
         }
 
         // Tech tree state
@@ -1793,6 +1886,45 @@
                 updateQuests();
             }
         };
+
+        function updateDiplomacy() {
+            const diplomacyGrid = document.getElementById('diplomacyGrid');
+            if (!diplomacyGrid) return;
+
+            const tribes = ['Alpha', 'Beta', 'Gamma'];
+            let html = '';
+
+            for (const tribe of tribes) {
+                const relationships = engine.getTribeRelationships(tribe);
+
+                let relationshipsHTML = '';
+                for (const [otherTribe, rel] of Object.entries(relationships)) {
+                    const agreementTags = [];
+                    if (rel.tradeAgreement) agreementTags.push('<span class="agreement-tag">Trade</span>');
+                    if (rel.nonAggressionPact) agreementTags.push('<span class="agreement-tag">Peace</span>');
+                    if (rel.sharedResearch) agreementTags.push('<span class="agreement-tag">Research</span>');
+
+                    relationshipsHTML += `
+                        <div class="relationship-item">
+                            <div>
+                                <div class="relationship-name">${otherTribe}</div>
+                                <div class="agreement-tags">${agreementTags.join('')}</div>
+                            </div>
+                            <div class="relationship-status status-${rel.status}">${rel.status.toUpperCase().replace('_', ' ')}</div>
+                        </div>
+                    `;
+                }
+
+                html += `
+                    <div class="tribe-diplomacy">
+                        <h3>${tribe}</h3>
+                        ${relationshipsHTML}
+                    </div>
+                `;
+            }
+
+            diplomacyGrid.innerHTML = html;
+        }
 
         // Game speed and pause controls
         let gameSpeed = 3000;

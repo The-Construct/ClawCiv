@@ -8,6 +8,7 @@ import { BuildingSystem, Building } from '../systems/Buildings.js';
 import { AchievementSystem } from '../systems/Achievements.ts';
 import { EventSystem } from '../systems/Events.ts';
 import { QuestSystem } from '../systems/Quests.ts';
+import { DiplomacySystem } from '../systems/Diplomacy.ts';
 
 export interface Message {
   id: string;
@@ -70,6 +71,7 @@ export class GameEngine {
   private achievementSystem: AchievementSystem;
   private eventSystem: EventSystem;
   private questSystem: QuestSystem;
+  private diplomacySystem: DiplomacySystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -80,6 +82,7 @@ export class GameEngine {
     this.achievementSystem.setGameEngine(this);
     this.eventSystem = new EventSystem();
     this.questSystem = new QuestSystem();
+    this.diplomacySystem = new DiplomacySystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -421,9 +424,11 @@ export class GameEngine {
       type: 'trade'
     });
 
-    // Reward successful trade
-    this.tokenSystem.earnTokens(agent.id, 10, 'trade');
-    this.tokenSystem.earnTokens(other.id, 10, 'trade');
+    // Reward successful trade with diplomacy modifier
+    const tradeModifier = this.diplomacySystem.getTradeModifier(agent.tribe, other.tribe);
+    const tokenReward = Math.round(10 * tradeModifier);
+    this.tokenSystem.earnTokens(agent.id, tokenReward, 'trade');
+    this.tokenSystem.earnTokens(other.id, tokenReward, 'trade');
 
     return true;
   }
@@ -433,6 +438,11 @@ export class GameEngine {
 
     // Same tribe rarely fights
     if (attacker.tribe === defender.tribe && Math.random() > 0.1) {
+      return false;
+    }
+
+    // Check diplomacy - cannot fight if tribes have non-aggression pact or alliance
+    if (!this.diplomacySystem.canFight(attacker.tribe, defender.tribe)) {
       return false;
     }
 
@@ -720,6 +730,57 @@ export class GameEngine {
     // Decay territories occasionally (every 10 days)
     if (this.state.day % 10 === 0) {
       this.territorySystem.decayTerritories();
+    }
+
+    // Update diplomacy and generate AI proposals occasionally (every 15 days)
+    if (this.state.day % 15 === 0) {
+      this.diplomacySystem.updateAgreements(this.state.day);
+
+      // Generate AI proposals between tribes
+      for (const tribe1 of this.TRIBES) {
+        for (const tribe2 of this.TRIBES) {
+          if (tribe1 >= tribe2) continue; // Avoid duplicates
+
+          const agents1 = this.state.agents.filter(a => a.tribe === tribe1 && a.alive);
+          const agents2 = this.state.agents.filter(a => a.tribe === tribe2 && a.alive);
+
+          // Tribe 1 proposes to Tribe 2
+          const proposal1 = this.diplomacySystem.generateAIProposal(tribe1, tribe2, agents1, agents2);
+          if (proposal1) {
+            const evaluation = this.diplomacySystem.evaluateProposal(proposal1, 0);
+            if (evaluation.accept) {
+              this.diplomacySystem.respondToProposal(proposal1.id, true);
+              this.addMessage({
+                id: `diplomacy-${proposal1.id}`,
+                agentId: 'system',
+                agentName: 'System',
+                tribe: tribe1,
+                content: `🤝 ${tribe1} and ${tribe2} have formed a ${proposal1.type.replace('_', ' ')}!`,
+                timestamp: this.state.day,
+                type: 'diplomacy'
+              });
+            }
+          }
+
+          // Tribe 2 proposes to Tribe 1
+          const proposal2 = this.diplomacySystem.generateAIProposal(tribe2, tribe1, agents2, agents1);
+          if (proposal2) {
+            const evaluation = this.diplomacySystem.evaluateProposal(proposal2, 0);
+            if (evaluation.accept) {
+              this.diplomacySystem.respondToProposal(proposal2.id, true);
+              this.addMessage({
+                id: `diplomacy-${proposal2.id}`,
+                agentId: 'system',
+                agentName: 'System',
+                tribe: tribe2,
+                content: `🤝 ${tribe2} and ${tribe1} have formed a ${proposal2.type.replace('_', ' ')}!`,
+                timestamp: this.state.day,
+                type: 'diplomacy'
+              });
+            }
+          }
+        }
+      }
     }
   }
 
@@ -1044,6 +1105,20 @@ export class GameEngine {
     return this.questSystem.getQuestsByAgent(agentId);
   }
 
+  public getDiplomacySystem(): DiplomacySystem {
+    return this.diplomacySystem;
+  }
+
+  public getTribeRelationships(tribe: string) {
+    const relationships: any = {};
+    for (const other of this.TRIBES) {
+      if (other !== tribe) {
+        relationships[other] = this.diplomacySystem.getRelationship(tribe, other);
+      }
+    }
+    return relationships;
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1054,6 +1129,7 @@ export class GameEngine {
       buildingSystem: this.buildingSystem.serialize(),
       eventSystem: this.eventSystem.serialize(),
       questSystem: this.questSystem.serialize(),
+      diplomacySystem: this.diplomacySystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1085,6 +1161,11 @@ export class GameEngine {
     // Restore quest system
     if (data.questSystem) {
       this.questSystem.deserialize(data.questSystem);
+    }
+
+    // Restore diplomacy system
+    if (data.diplomacySystem) {
+      this.diplomacySystem.deserialize(data.diplomacySystem);
     }
 
     // Restore victory state
