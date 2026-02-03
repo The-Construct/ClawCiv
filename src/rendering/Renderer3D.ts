@@ -520,8 +520,11 @@ export class GameRenderer3D {
 
     const color = colors[tribe as keyof typeof colors] || colors['Alpha'];
 
-    // Background (transparent)
-    ctx.clearRect(0, 0, 64, 64);
+    // Draw background circle (makes sprite more visible)
+    ctx.fillStyle = color.main + '40'; // Semi-transparent
+    ctx.beginPath();
+    ctx.arc(32, 32, 28, 0, Math.PI * 2);
+    ctx.fill();
 
     // Draw character body (improved pixel art style)
     ctx.fillStyle = color.dark;
@@ -549,15 +552,14 @@ export class GameRenderer3D {
 
     // Add glow effect
     ctx.shadowColor = color.main;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 10;
     ctx.strokeStyle = color.light;
     ctx.lineWidth = 2;
-    ctx.strokeRect(14, 12, 36, 44);
+    ctx.strokeRect(12, 10, 40, 48);
 
     const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
     texture.needsUpdate = true;
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestFilter;
     return texture;
   }
 
