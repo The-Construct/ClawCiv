@@ -15,6 +15,7 @@ import { OrganizationSystem } from '../systems/Organizations.ts';
 import { GovernanceSystem } from '../systems/Governance.ts';
 import { SpySystem } from '../systems/Spy.ts';
 import { ArtifactSystem } from '../systems/Artifacts.ts';
+import { FestivalSystem } from '../systems/Festivals.ts';
 
 export interface Message {
   id: string;
@@ -84,6 +85,7 @@ export class GameEngine {
   private governanceSystem: GovernanceSystem;
   private spySystem: SpySystem;
   private artifactSystem: ArtifactSystem;
+  private festivalSystem: FestivalSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -101,6 +103,7 @@ export class GameEngine {
     this.governanceSystem = new GovernanceSystem();
     this.spySystem = new SpySystem();
     this.artifactSystem = new ArtifactSystem();
+    this.festivalSystem = new FestivalSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -981,6 +984,25 @@ export class GameEngine {
     if (this.state.day % 50 === 0) {
       this.spySystem.cleanupOldReports();
     }
+
+    // Update festivals
+    const festivalUpdate = this.festivalSystem.updateFestivals(this.state.day);
+    for (const message of festivalUpdate.messages) {
+      this.addMessage({
+        id: `festival-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: message,
+        timestamp: this.state.day,
+        type: 'celebration'
+      });
+    }
+
+    // Clean up old festivals periodically
+    if (this.state.day % 100 === 0) {
+      this.festivalSystem.cleanupOldFestivals(this.state.day);
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -1483,6 +1505,34 @@ export class GameEngine {
     return this.artifactSystem.transferArtifact(artifactId, newTribe, method as any);
   }
 
+  public getFestivalSystem(): FestivalSystem {
+    return this.festivalSystem;
+  }
+
+  public getAllFestivals() {
+    return this.festivalSystem.getAllFestivals();
+  }
+
+  public getFestivalsByTribe(tribe: string) {
+    return this.festivalSystem.getFestivalsByTribe(tribe);
+  }
+
+  public getActiveFestivals() {
+    return this.festivalSystem.getActiveFestivals();
+  }
+
+  public planFestival(tribe: string, type: string, plannedDay: number, coHostTribes: string[] = []) {
+    return this.festivalSystem.planFestival(tribe, type as any, plannedDay, coHostTribes);
+  }
+
+  public getFestival(festivalId: string) {
+    return this.festivalSystem.getFestival(festivalId);
+  }
+
+  public getActiveFestivalBonuses(tribe: string) {
+    return this.festivalSystem.getActiveBonuses(tribe, this.state.day);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1500,6 +1550,7 @@ export class GameEngine {
       governanceSystem: this.governanceSystem.serialize(),
       spySystem: this.spySystem.serialize(),
       artifactSystem: this.artifactSystem.serialize(),
+      festivalSystem: this.festivalSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1566,6 +1617,11 @@ export class GameEngine {
     // Restore artifact system
     if (data.artifactSystem) {
       this.artifactSystem.deserialize(data.artifactSystem);
+    }
+
+    // Restore festival system
+    if (data.festivalSystem) {
+      this.festivalSystem.deserialize(data.festivalSystem);
     }
 
     // Restore victory state
