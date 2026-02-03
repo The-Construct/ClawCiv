@@ -13,6 +13,7 @@ import { SeasonSystem } from '../systems/Seasons.ts';
 import { TribeConfigSystem } from '../systems/TribeConfig.ts';
 import { OrganizationSystem } from '../systems/Organizations.ts';
 import { GovernanceSystem } from '../systems/Governance.ts';
+import { SpySystem } from '../systems/Spy.ts';
 
 export interface Message {
   id: string;
@@ -80,6 +81,7 @@ export class GameEngine {
   private tribeConfigSystem: TribeConfigSystem;
   private organizationSystem: OrganizationSystem;
   private governanceSystem: GovernanceSystem;
+  private spySystem: SpySystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -95,6 +97,7 @@ export class GameEngine {
     this.tribeConfigSystem = new TribeConfigSystem();
     this.organizationSystem = new OrganizationSystem();
     this.governanceSystem = new GovernanceSystem();
+    this.spySystem = new SpySystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -926,6 +929,25 @@ export class GameEngine {
         }
       }
     }
+
+    // Update spy missions (every day)
+    const spyUpdateResult = this.spySystem.updateMissions(this.state.day, this.state);
+    for (const event of spyUpdateResult.events) {
+      this.addMessage({
+        id: `spy-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: event,
+        timestamp: this.state.day,
+        type: 'combat'
+      });
+    }
+
+    // Clean up old intel reports periodically
+    if (this.state.day % 50 === 0) {
+      this.spySystem.cleanupOldReports();
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -1333,6 +1355,44 @@ export class GameEngine {
     return this.governanceSystem.getAllGovernments();
   }
 
+  public getSpySystem(): SpySystem {
+    return this.spySystem;
+  }
+
+  public isSpy(agentId: string): boolean {
+    return this.spySystem.isSpy(agentId);
+  }
+
+  public getSpy(agentId: string) {
+    return this.spySystem.getSpy(agentId);
+  }
+
+  public getAllSpies() {
+    return this.spySystem.getAllSpies();
+  }
+
+  public getSpiesByTribe(tribe: string) {
+    return this.spySystem.getSpiesByTribe(tribe);
+  }
+
+  public getActiveMissions() {
+    return this.spySystem.getActiveMissions();
+  }
+
+  public recruitSpy(agentId: string, coverRole: string): boolean {
+    const agent = this.state.agents.find(a => a.id === agentId);
+    if (!agent) return false;
+    return this.spySystem.recruitSpy(agentId, agent.tribe, coverRole as any);
+  }
+
+  public createMission(spyId: string, targetTribe: string, missionType: string, targetId?: string) {
+    return this.spySystem.createMission(spyId, targetTribe, missionType as any, targetId);
+  }
+
+  public getIntelligenceReports(tribe?: string) {
+    return this.spySystem.getIntelligenceReports(tribe);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1348,6 +1408,7 @@ export class GameEngine {
       tribeConfigSystem: this.tribeConfigSystem.serialize(),
       organizationSystem: this.organizationSystem.serialize(),
       governanceSystem: this.governanceSystem.serialize(),
+      spySystem: this.spySystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1404,6 +1465,11 @@ export class GameEngine {
     // Restore governance system
     if (data.governanceSystem) {
       this.governanceSystem.deserialize(data.governanceSystem);
+    }
+
+    // Restore spy system
+    if (data.spySystem) {
+      this.spySystem.deserialize(data.spySystem);
     }
 
     // Restore victory state
