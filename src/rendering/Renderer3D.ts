@@ -589,9 +589,26 @@ export class GameRenderer3D {
         this.agentMeshes.set(agent.id, mesh);
       }
 
-      // Move agents based on game events
-      if (agent.currentMessage || agent.resources.food < 10 || agent.resources.energy < 5) {
-        // Agents with messages or low resources move more
+      // Move agents based on game events or targets
+      if (agent.targetAgentId) {
+        // Agent has a combat target - move toward them
+        const targetMesh = this.agentMeshes.get(agent.targetAgentId);
+        if (targetMesh) {
+          const dx = targetMesh.position.x - mesh.position.x;
+          const dz = targetMesh.position.z - mesh.position.z;
+          const distance = Math.sqrt(dx * dx + dz * dz);
+
+          // Move toward target if far enough
+          if (distance > 15) {
+            const moveDistance = 12;
+            const newX = mesh.targetPosition.x + (dx / distance) * moveDistance;
+            const newZ = mesh.targetPosition.z + (dz / distance) * moveDistance;
+
+            mesh.targetPosition.set(newX, 3, newZ);
+          }
+        }
+      } else if (agent.currentMessage || agent.resources.food < 10 || agent.resources.energy < 5) {
+        // Agents with messages or low resources move more randomly
         const moveDistance = 8;
         const angle = Math.random() * Math.PI * 2;
         const newX = mesh.targetPosition.x + Math.cos(angle) * moveDistance;
@@ -604,11 +621,11 @@ export class GameRenderer3D {
           3,
           Math.max(-halfWorld, Math.min(halfWorld, newZ))
         );
-
-        // Update agent's world position for game interactions
-        (agent as any).worldX = mesh.targetPosition.x;
-        (agent as any).worldZ = mesh.targetPosition.z;
       }
+
+      // Update agent's world position for game interactions
+      (agent as any).worldX = mesh.targetPosition.x;
+      (agent as any).worldZ = mesh.targetPosition.z;
 
       mesh.agentData = agent;
     }

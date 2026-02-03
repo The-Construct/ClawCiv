@@ -25,6 +25,7 @@ export interface Agent {
   y: number;
   worldX: number; // Actual 3D world X position
   worldZ: number; // Actual 3D world Z position
+  targetAgentId?: string; // Agent this agent is moving toward (for attack/defend)
   resources: {
     food: number;
     energy: number;
@@ -54,7 +55,8 @@ export interface GameState {
 export class GameEngine {
   private state: GameState;
   private readonly GRID_SIZE = 10;
-  private readonly INITIAL_AGENTS = 150;
+  private readonly INITIAL_AGENTS = 60; // 20 per tribe
+  private readonly AGENTS_PER_TRIBE = 20;
   private readonly TRIBES = ['Alpha', 'Beta', 'Gamma'];
   private tokenSystem: TokenSystem;
   private territorySystem: TerritorySystem;
@@ -81,23 +83,23 @@ export class GameEngine {
     const agents: Agent[] = [];
     let agentId = 0;
 
-    // Define tribe centers in world space (1000x1000 world, so centers at -300, 0, 300)
+    // Define tribe centers in world space (1000x1000 world)
     const tribeCenters = new Map<string, { x: number; z: number }>([
-      ['Alpha', { x: -300, z: -300 }],
-      ['Beta', { x: 300, z: -300 }],
-      ['Gamma', { x: 0, z: 300 }]
+      ['Alpha', { x: -350, z: -350 }],
+      ['Beta', { x: 350, z: -350 }],
+      ['Gamma', { x: 0, z: 350 }]
     ]);
 
     for (const tribe of this.TRIBES) {
       const center = tribeCenters.get(tribe)!;
 
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < this.AGENTS_PER_TRIBE; i++) {
         const id = `agent-${agentId++}`;
         const skills = this.generateSkills();
         const specialization = this.determineSpecialization(skills);
 
         // Position agents around their tribe center with some spread
-        const spread = 150; // Tribe territory spread
+        const spread = 250; // Tribe territory spread (less tight)
         const worldX = center.x + (Math.random() - 0.5) * spread;
         const worldZ = center.z + (Math.random() - 0.5) * spread;
 
@@ -418,6 +420,17 @@ export class GameEngine {
       return false;
     }
 
+    // Attacker moves toward defender
+    attacker.targetAgentId = defender.id;
+
+    // Defender's tribe members come to help
+    const nearbyAllies = this.getNearbyAgents(defender, 100);
+    for (const ally of nearbyAllies.slice(0, 3)) { // Up to 3 allies help
+      if (ally.tribe === defender.tribe && ally.skills.includes('combat')) {
+        ally.targetAgentId = attacker.id;
+      }
+    }
+
     // Combat strength based on resources
     const attackPower = attacker.resources.energy * 0.5 + attacker.resources.materials * 0.3;
     const defensePower = defender.resources.energy * 0.5 + defender.resources.materials * 0.3;
@@ -436,6 +449,9 @@ export class GameEngine {
 
       attacker.currentMessage = `Victory over ${defender.name}!`;
       attacker.messageTimer = 5;
+
+      // Clear target after combat
+      attacker.targetAgentId = undefined;
 
       // Add to enemies
       defender.enemies.add(attacker.id);
@@ -470,6 +486,10 @@ export class GameEngine {
 
       defender.currentMessage = `Repelled ${attacker.name}!`;
       defender.messageTimer = 5;
+
+      // Clear targets after defense
+      attacker.targetAgentId = undefined;
+      defender.targetAgentId = undefined;
 
       this.state.messages.push({
         id: `combat-${Date.now()}-${defender.id}`,
