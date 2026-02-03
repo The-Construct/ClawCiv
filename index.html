@@ -334,6 +334,113 @@
             font-weight: bold;
             color: #00ff88;
         }
+        #techtree {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #818cf8;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        .tribe-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .tribe-btn {
+            flex: 1;
+            padding: 8px;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #888;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .tribe-btn:hover {
+            background: #2a2a3e;
+        }
+        .tribe-btn.active {
+            background: #818cf8;
+            color: #1a1a2e;
+            border-color: #818cf8;
+        }
+        .tech-progress {
+            text-align: center;
+            padding: 10px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            color: #818cf8;
+            border: 1px solid #333;
+        }
+        .tech-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .tech-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            border: 1px solid #333;
+            transition: all 0.2s;
+        }
+        .tech-item:hover {
+            background: #2a2a3e;
+        }
+        .tech-item.researched {
+            border-color: #818cf8;
+            background: rgba(129, 140, 248, 0.1);
+        }
+        .tech-item.available {
+            border-color: #4ade80;
+            cursor: pointer;
+        }
+        .tech-item.available:hover {
+            background: rgba(74, 222, 128, 0.1);
+        }
+        .tech-item.locked {
+            opacity: 0.5;
+        }
+        .tech-info {
+            flex: 1;
+        }
+        .tech-name {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .tech-desc {
+            font-size: 11px;
+            color: #888;
+        }
+        .tech-cost {
+            font-size: 10px;
+            color: #666;
+        }
+        .tech-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .tech-status.researched {
+            background: #818cf8;
+            color: #1a1a2e;
+        }
+        .tech-status.available {
+            background: #4ade80;
+            color: #1a1a2e;
+        }
+        .tech-status.locked {
+            background: #333;
+            color: #666;
+        }
         #agentPanel {
             position: fixed;
             top: 50%;
@@ -520,19 +627,19 @@
                 <div class="stat-label">Day</div>
             </div>
             <div class="stat">
-                <div class="stat-value" id="population">150</div>
+                <div class="stat-value" id="population">60</div>
                 <div class="stat-label">Population</div>
             </div>
             <div class="stat">
-                <div class="stat-value" id="alpha">50</div>
+                <div class="stat-value" id="alpha">20</div>
                 <div class="stat-label">Alpha</div>
             </div>
             <div class="stat">
-                <div class="stat-value" id="beta">50</div>
+                <div class="stat-value" id="beta">20</div>
                 <div class="stat-label">Beta</div>
             </div>
             <div class="stat">
-                <div class="stat-value" id="gamma">50</div>
+                <div class="stat-value" id="gamma">20</div>
                 <div class="stat-label">Gamma</div>
             </div>
         </div>
@@ -621,6 +728,21 @@
             </div>
             <div class="leaderboard-list" id="leaderboardList">
                 <div style="text-align: center; color: #666; padding: 20px;">Loading...</div>
+            </div>
+        </div>
+
+        <div id="techtree">
+            <h2>🔬 Tech Tree</h2>
+            <div class="tribe-selector">
+                <button class="tribe-btn active" data-tribe="Alpha">Alpha</button>
+                <button class="tribe-btn" data-tribe="Beta">Beta</button>
+                <button class="tribe-btn" data-tribe="Gamma">Gamma</button>
+            </div>
+            <div class="tech-progress">
+                <span id="techProgress">0 / 13 researched</span>
+            </div>
+            <div class="tech-list" id="techList">
+                <div style="text-align: center; color: #666; padding: 20px;">Select a tribe to view techs</div>
             </div>
         </div>
     </div>
@@ -929,6 +1051,72 @@
             updateResourceMarket();
             checkImportantEvents();
             updateLeaderboard();
+            updateTechTree();
+        }
+
+        // Tech tree state
+        let selectedTribeForTech = 'Alpha';
+
+        // Tribe selector click handlers
+        document.querySelectorAll('.tribe-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tribe-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedTribeForTech = btn.dataset.tribe || 'Alpha';
+                updateTechTree();
+            });
+        });
+
+        function updateTechTree() {
+            const techTree = engine.getTechTree(selectedTribeForTech);
+            if (!techTree) return;
+
+            const techList = document.getElementById('techList');
+            const progress = document.getElementById('techProgress');
+            const techs = techTree.getAllTechs();
+            const available = techTree.getAvailableTechs();
+            const researched = techTree.getResearchedTechs();
+            const progressData = techTree.getResearchProgress();
+
+            if (progress) {
+                progress.textContent = `${progressData.researched} / ${progressData.total} researched`;
+            }
+
+            if (!techList) return;
+
+            techList.innerHTML = '';
+
+            for (const tech of techs) {
+                const isResearched = tech.researched;
+                const isAvailable = available.some(t => t.id === tech.id);
+                const isLocked = !isResearched && !isAvailable;
+
+                const div = document.createElement('div');
+                div.className = `tech-item ${isResearched ? 'researched' : ''} ${isAvailable ? 'available' : ''} ${isLocked ? 'locked' : ''}`;
+
+                div.innerHTML = `
+                    <div class="tech-info">
+                        <div class="tech-name">${tech.name}</div>
+                        <div class="tech-desc">${tech.description}</div>
+                        <div class="tech-cost">
+                            🍞 ${tech.cost.food} 📚 ${tech.cost.knowledge} 🤝 ${tech.cost.socialCapital}
+                        </div>
+                    </div>
+                    <div class="tech-status ${isResearched ? 'researched' : isAvailable ? 'available' : 'locked'}">
+                        ${isResearched ? '✓ Done' : isAvailable ? 'Research' : '🔒 Locked'}
+                    </div>
+                `;
+
+                if (isAvailable) {
+                    div.addEventListener('click', () => {
+                        if (engine.researchTech(selectedTribeForTech, tech.id)) {
+                            updateTechTree();
+                        }
+                    });
+                }
+
+                techList.appendChild(div);
+            }
         }
 
         // Game loop - one tick every 3 seconds
