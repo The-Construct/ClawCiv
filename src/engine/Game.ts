@@ -3,6 +3,7 @@
 
 import { TokenSystem } from '../economy/Token.js';
 import { TerritorySystem } from '../systems/Territory.js';
+import { TechTree } from '../systems/TechTree.js';
 
 export interface Message {
   id: string;
@@ -22,6 +23,8 @@ export interface Agent {
   tribe: string;
   x: number;
   y: number;
+  worldX: number; // Actual 3D world X position
+  worldZ: number; // Actual 3D world Z position
   resources: {
     food: number;
     energy: number;
@@ -55,10 +58,16 @@ export class GameEngine {
   private readonly TRIBES = ['Alpha', 'Beta', 'Gamma'];
   private tokenSystem: TokenSystem;
   private territorySystem: TerritorySystem;
+  private techTrees: Map<string, TechTree>;
 
   constructor() {
     this.tokenSystem = new TokenSystem();
     this.territorySystem = new TerritorySystem();
+    this.techTrees = new Map();
+    // Create tech tree for each tribe
+    for (const tribe of this.TRIBES) {
+      this.techTrees.set(tribe, new TechTree());
+    }
     this.state = this.initializeState();
   }
 
@@ -68,15 +77,29 @@ export class GameEngine {
       Array(this.GRID_SIZE).fill(0)
     );
 
-    // Create 150 agents (50 per tribe)
+    // Create 150 agents (50 per tribe) with tribe territories
     const agents: Agent[] = [];
     let agentId = 0;
 
+    // Define tribe centers in world space (1000x1000 world, so centers at -300, 0, 300)
+    const tribeCenters = new Map<string, { x: number; z: number }>([
+      ['Alpha', { x: -300, z: -300 }],
+      ['Beta', { x: 300, z: -300 }],
+      ['Gamma', { x: 0, z: 300 }]
+    ]);
+
     for (const tribe of this.TRIBES) {
+      const center = tribeCenters.get(tribe)!;
+
       for (let i = 0; i < 50; i++) {
         const id = `agent-${agentId++}`;
         const skills = this.generateSkills();
         const specialization = this.determineSpecialization(skills);
+
+        // Position agents around their tribe center with some spread
+        const spread = 150; // Tribe territory spread
+        const worldX = center.x + (Math.random() - 0.5) * spread;
+        const worldZ = center.z + (Math.random() - 0.5) * spread;
 
         agents.push({
           id: id,
@@ -84,6 +107,8 @@ export class GameEngine {
           tribe,
           x: Math.floor(Math.random() * this.GRID_SIZE),
           y: Math.floor(Math.random() * this.GRID_SIZE),
+          worldX: worldX,
+          worldZ: worldZ,
           resources: {
             food: 100,
             energy: 100,
@@ -324,13 +349,17 @@ export class GameEngine {
     return options[Math.floor(Math.random() * options.length)];
   }
 
-  private getNearbyAgents(agent: Agent, range: number = 1): Agent[] {
-    return this.state.agents.filter(other =>
-      other.id !== agent.id &&
-      other.alive &&
-      Math.abs(other.x - agent.x) <= range &&
-      Math.abs(other.y - agent.y) <= range
-    );
+  private getNearbyAgents(agent: Agent, range: number = 50): Agent[] {
+    return this.state.agents.filter(other => {
+      if (other.id === agent.id || !other.alive) return false;
+
+      // Use world positions for proximity
+      const dx = other.worldX - agent.worldX;
+      const dz = other.worldZ - agent.worldZ;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+
+      return distance <= range;
+    });
   }
 
   private handleTrade(agent: Agent, other: Agent): boolean {
@@ -677,6 +706,60 @@ export class GameEngine {
 
   public getTerritorySystem() {
     return this.territorySystem;
+  }
+
+  // Tech Tree Methods
+  public getTechTree(tribe: string): TechTree | undefined {
+    return this.techTrees.get(tribe);
+  }
+
+  public researchTech(tribe: string, techId: string): boolean {
+    const techTree = this.techTrees.get(tribe);
+    if (!techTree) return false;
+
+    // Calculate tribe resources
+    const tribeAgents = this.state.agents.filter(a => a.tribe === tribe && a.alive);
+    const totalResources = {
+      food: tribeAgents.reduce((sum, a) => sum + a.resources.food, 0),
+      knowledge: tribeAgents.reduce((sum, a) => sum + a.resources.knowledge, 0),
+      socialCapital: tribeAgents.reduce((sum, a) => sum + a.resources.socialCapital, 0)
+    };
+
+    const success = techTree.research(techId, totalResources);
+    if (success) {
+      // Deduct resources from tribe agents
+      const tech = techTree.getTech(techId);
+      if (tech) {
+        const perAgentCost = {
+          food: tech.cost.food / tribeAgents.length,
+          knowledge: tech.cost.knowledge / tribeAgents.length,
+          socialCapital: tech.cost.socialCapital / tribeAgents.length
+        };
+
+        for (const agent of tribeAgents) {
+          agent.resources.food -= perAgentCost.food;
+          agent.resources.knowledge -= perAgentCost.knowledge;
+          agent.resources.socialCapital -= perAgentCost.socialCapital;
+        }
+
+        this.addMessage({
+          id: `tech-${techId}-${Date.now()}`,
+          agentId: tribe,
+          agentName: tribe,
+          tribe,
+          content: `Research complete: ${tech.name}!`,
+          timestamp: this.state.day,
+          type: 'celebration'
+        });
+      }
+    }
+
+    return success;
+  }
+
+  public getResourceBonus(tribe: string, resourceType: string): number {
+    const techTree = this.techTrees.get(tribe);
+    return techTree ? techTree.getBonus(resourceType) : 1.0;
   }
 
   public getTerritoryStats() {

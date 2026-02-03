@@ -121,8 +121,8 @@ export class GameRenderer3D {
       position: absolute;
       bottom: 20px;
       right: 20px;
-      width: 200px;
-      height: 200px;
+      width: 100px;
+      height: 100px;
       background: rgba(15, 15, 26, 0.9);
       border: 2px solid #333;
       border-radius: 8px;
@@ -132,8 +132,8 @@ export class GameRenderer3D {
     `;
 
     const minimapCanvas = document.createElement('canvas');
-    minimapCanvas.width = 200;
-    minimapCanvas.height = 200;
+    minimapCanvas.width = 100;
+    minimapCanvas.height = 100;
     minimapCanvas.style.cssText = `
       width: 100%;
       height: 100%;
@@ -151,29 +151,30 @@ export class GameRenderer3D {
 
     // Clear
     ctx.fillStyle = '#0f0f1a';
-    ctx.fillRect(0, 0, 200, 200);
+    ctx.fillRect(0, 0, 100, 100);
 
-    // Draw agents
-    for (const agent of state.agents) {
-      if (!agent.alive) continue;
+    // Draw agents using their actual 3D positions
+    for (const [agentId, mesh] of this.agentMeshes) {
+      const agent = state.agents.find(a => a.id === agentId);
+      if (!agent || !agent.alive) continue;
 
-      // Map world position to minimap
-      const mapX = ((agent.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
-      const mapY = ((agent.y + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+      // Map 3D world position to minimap (world is -500 to 500)
+      const mapX = ((mesh.position.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 100;
+      const mapY = ((mesh.position.z + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 100;
 
       const color = agent.tribe === 'Alpha' ? '#ff6b6b' :
                     agent.tribe === 'Beta' ? '#4ecdc4' : '#ffe66d';
 
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(mapX, mapY, 2, 0, Math.PI * 2);
+      ctx.arc(mapX, mapY, 1.5, 0, Math.PI * 2);
       ctx.fill();
     }
 
     // Draw camera viewport
-    const camSize = 100; // Approximate viewport size on minimap
-    const camX = ((this.cameraTarget.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
-    const camY = ((this.cameraTarget.z + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+    const camSize = 50; // Approximate viewport size on minimap
+    const camX = ((this.cameraTarget.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 100;
+    const camY = ((this.cameraTarget.z + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 100;
 
     ctx.strokeStyle = '#00ff88';
     ctx.lineWidth = 1;
@@ -576,9 +577,9 @@ export class GameRenderer3D {
         mesh = new THREE.Sprite(material) as AgentMesh;
         mesh.agentData = agent;
 
-        // Random initial position across the world
-        const x = (Math.random() - 0.5) * this.WORLD_SIZE * 0.7;
-        const z = (Math.random() - 0.5) * this.WORLD_SIZE * 0.7;
+        // Use agent's world position from game state
+        const x = (agent as any).worldX || 0;
+        const z = (agent as any).worldZ || 0;
         mesh.currentPosition = new THREE.Vector3(x, 3, z);
         mesh.targetPosition = new THREE.Vector3(x, 3, z);
         mesh.position.copy(mesh.currentPosition);
@@ -603,6 +604,10 @@ export class GameRenderer3D {
           3,
           Math.max(-halfWorld, Math.min(halfWorld, newZ))
         );
+
+        // Update agent's world position for game interactions
+        (agent as any).worldX = mesh.targetPosition.x;
+        (agent as any).worldZ = mesh.targetPosition.z;
       }
 
       mesh.agentData = agent;
@@ -750,9 +755,9 @@ export class GameRenderer3D {
       const ctx = canvas.getContext('2d');
       if (ctx) {
         // Redraw camera viewport indicator
-        const camSize = 100;
-        const camX = ((this.cameraTarget.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
-        const camY = ((this.cameraTarget.z + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 200;
+        const camSize = 50;
+        const camX = ((this.cameraTarget.x + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 100;
+        const camY = ((this.cameraTarget.z + this.WORLD_SIZE / 2) / this.WORLD_SIZE) * 100;
 
         // Redraw only the viewport indicator (optimization)
         ctx.strokeStyle = '#00ff88';
@@ -799,6 +804,12 @@ export class GameRenderer3D {
       }
 
       mesh.position.copy(mesh.currentPosition);
+
+      // Update agent's world position for game interactions
+      if (mesh.agentData) {
+        (mesh.agentData as any).worldX = mesh.currentPosition.x;
+        (mesh.agentData as any).worldZ = mesh.currentPosition.z;
+      }
     }
 
     // Update selection ring position
