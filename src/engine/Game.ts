@@ -6,6 +6,7 @@ import { TerritorySystem } from '../systems/Territory.js';
 import { TechTree } from '../systems/TechTree.js';
 import { BuildingSystem, Building } from '../systems/Buildings.js';
 import { AchievementSystem } from '../systems/Achievements.ts';
+import { EventSystem } from '../systems/Events.ts';
 
 export interface Message {
   id: string;
@@ -66,6 +67,7 @@ export class GameEngine {
   private techTrees: Map<string, TechTree>;
   private buildingSystem: BuildingSystem;
   private achievementSystem: AchievementSystem;
+  private eventSystem: EventSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -74,6 +76,7 @@ export class GameEngine {
     this.buildingSystem = new BuildingSystem();
     this.achievementSystem = new AchievementSystem();
     this.achievementSystem.setGameEngine(this);
+    this.eventSystem = new EventSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -636,6 +639,53 @@ export class GameEngine {
       }
     }
 
+    // Check for random events
+    const newEvent = this.eventSystem.checkForEvent(this.state);
+    if (newEvent) {
+      this.addMessage({
+        id: `event-${newEvent.id}-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: `${newEvent.icon} ${newEvent.name}: ${newEvent.description}`,
+        timestamp: this.state.day,
+        type: newEvent.type === 'disaster' ? 'combat' : 'celebration'
+      });
+
+      // Apply event effects to all agents
+      const results = this.eventSystem.applyEventEffects(newEvent, this.state.agents);
+
+      // Report casualties if any
+      if (results.casualties.length > 0) {
+        const deadAgents = this.state.agents.filter(a => results.casualties.includes(a.id));
+        for (const agent of deadAgents) {
+          this.addMessage({
+            id: `death-${Date.now()}-${agent.id}`,
+            agentId: agent.id,
+            agentName: agent.name,
+            tribe: agent.tribe,
+            content: `${agent.name} perished in the ${newEvent.name}!`,
+            timestamp: this.state.day,
+            type: 'combat'
+          });
+        }
+      }
+    }
+
+    // Update active events
+    const expiredEvents = this.eventSystem.updateActiveEvents();
+    for (const event of expiredEvents) {
+      this.addMessage({
+        id: `event-end-${event.id}-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: `${event.icon} The ${event.name} has ended.`,
+        timestamp: this.state.day,
+        type: 'celebration'
+      });
+    }
+
     // Update buildings and apply benefits
     const buildings = this.buildingSystem.getBuildings();
     // Sync with state
@@ -968,6 +1018,14 @@ export class GameEngine {
     return this.victoryAchieved;
   }
 
+  public getEventSystem(): EventSystem {
+    return this.eventSystem;
+  }
+
+  public getActiveEvents() {
+    return this.eventSystem.getActiveEvents();
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -975,7 +1033,9 @@ export class GameEngine {
       tokenSystem: this.tokenSystem.serialize(),
       territorySystem: this.territorySystem.serialize(),
       techTrees: Array.from(this.techTrees.entries()).map(([tribe, tree]) => [tribe, tree.serialize()]),
-      buildingSystem: this.buildingSystem.serialize()
+      buildingSystem: this.buildingSystem.serialize(),
+      eventSystem: this.eventSystem.serialize(),
+      victoryAchieved: this.victoryAchieved
     };
   }
 
@@ -997,5 +1057,13 @@ export class GameEngine {
     if (data.buildingSystem) {
       this.buildingSystem.deserialize(data.buildingSystem);
     }
+
+    // Restore event system
+    if (data.eventSystem) {
+      this.eventSystem.deserialize(data.eventSystem);
+    }
+
+    // Restore victory state
+    this.victoryAchieved = data.victoryAchieved || false;
   }
 }

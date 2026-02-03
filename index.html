@@ -719,6 +719,69 @@
             0% { transform: translate(-50%, -100%) scale(0); opacity: 0; }
             100% { transform: translate(-50%, -120%) scale(1); opacity: 1; }
         }
+        #activeEvents {
+            background: #0f0f1a;
+            padding: 15px;
+            border: 1px solid #f59e0b;
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        #activeEvents h2 {
+            color: #f59e0b;
+            margin: 0 0 15px 0;
+            font-size: 16px;
+        }
+        .event-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .event-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: #1a1a2e;
+            border-radius: 6px;
+            border-left: 3px solid #f59e0b;
+        }
+        .event-item.disaster {
+            border-left-color: #ff6b6b;
+        }
+        .event-item.discovery {
+            border-left-color: #4ecdc4;
+        }
+        .event-item.blessing {
+            border-left-color: #00ff88;
+        }
+        .event-item.conflict {
+            border-left-color: #f59e0b;
+        }
+        .event-info {
+            flex: 1;
+        }
+        .event-name {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 3px;
+        }
+        .event-desc {
+            font-size: 11px;
+            color: #888;
+        }
+        .event-duration {
+            font-size: 11px;
+            color: #f59e0b;
+            padding: 4px 8px;
+            background: rgba(245, 158, 11, 0.1);
+            border-radius: 4px;
+        }
+        .no-events {
+            text-align: center;
+            color: #666;
+            padding: 15px;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -935,6 +998,13 @@
             </div>
             <div class="building-list" id="buildingList">
                 <div style="text-align: center; color: #666; padding: 20px;">Select a tribe to view buildings</div>
+            </div>
+        </div>
+
+        <div id="activeEvents">
+            <h2>🌍 Active World Events</h2>
+            <div class="event-list" id="eventList">
+                <div class="no-events">No active events</div>
             </div>
         </div>
     </div>
@@ -1250,6 +1320,7 @@
             updateLeaderboard();
             updateTechTree();
             updateBuildings();
+            updateActiveEvents();
         }
 
         // Tech tree state
@@ -1489,6 +1560,35 @@
 
             if (listEl.children.length === 0) {
                 listEl.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No buildings available. Research more technologies!</div>';
+            }
+        }
+
+        function updateActiveEvents() {
+            const eventListEl = document.getElementById('eventList');
+            if (!eventListEl) return;
+
+            const activeEvents = engine.getActiveEvents();
+
+            if (activeEvents.length === 0) {
+                eventListEl.innerHTML = '<div class="no-events">No active events</div>';
+                return;
+            }
+
+            eventListEl.innerHTML = '';
+
+            for (const event of activeEvents) {
+                const div = document.createElement('div');
+                div.className = `event-item ${event.type}`;
+
+                div.innerHTML = `
+                    <div class="event-info">
+                        <div class="event-name">${event.icon} ${event.name}</div>
+                        <div class="event-desc">${event.description}</div>
+                    </div>
+                    <div class="event-duration">${event.remainingTicks} ticks left</div>
+                `;
+
+                eventListEl.appendChild(div);
             }
         }
 
