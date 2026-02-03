@@ -7,6 +7,7 @@ import { TechTree } from '../systems/TechTree.js';
 import { BuildingSystem, Building } from '../systems/Buildings.js';
 import { AchievementSystem } from '../systems/Achievements.ts';
 import { EventSystem } from '../systems/Events.ts';
+import { QuestSystem } from '../systems/Quests.ts';
 
 export interface Message {
   id: string;
@@ -68,6 +69,7 @@ export class GameEngine {
   private buildingSystem: BuildingSystem;
   private achievementSystem: AchievementSystem;
   private eventSystem: EventSystem;
+  private questSystem: QuestSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -77,6 +79,7 @@ export class GameEngine {
     this.achievementSystem = new AchievementSystem();
     this.achievementSystem.setGameEngine(this);
     this.eventSystem = new EventSystem();
+    this.questSystem = new QuestSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -1026,6 +1029,21 @@ export class GameEngine {
     return this.eventSystem.getActiveEvents();
   }
 
+  public getQuestSystem(): QuestSystem {
+    return this.questSystem;
+  }
+
+  public assignQuest(agentId: string): any {
+    const agent = this.state.agents.find(a => a.id === agentId);
+    if (!agent || !agent.alive) return null;
+
+    return this.questSystem.generateQuest(agent);
+  }
+
+  public getAgentQuests(agentId: string) {
+    return this.questSystem.getQuestsByAgent(agentId);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1035,6 +1053,7 @@ export class GameEngine {
       techTrees: Array.from(this.techTrees.entries()).map(([tribe, tree]) => [tribe, tree.serialize()]),
       buildingSystem: this.buildingSystem.serialize(),
       eventSystem: this.eventSystem.serialize(),
+      questSystem: this.questSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1061,6 +1080,11 @@ export class GameEngine {
     // Restore event system
     if (data.eventSystem) {
       this.eventSystem.deserialize(data.eventSystem);
+    }
+
+    // Restore quest system
+    if (data.questSystem) {
+      this.questSystem.deserialize(data.questSystem);
     }
 
     // Restore victory state
