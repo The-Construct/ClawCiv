@@ -18,6 +18,7 @@ import { ArtifactSystem } from '../systems/Artifacts.ts';
 import { FestivalSystem } from '../systems/Festivals.ts';
 import { ReligionSystem } from '../systems/Religion.ts';
 import { DiseaseSystem } from '../systems/Disease.ts';
+import { WonderSystem } from '../systems/Wonders.ts';
 
 export interface Message {
   id: string;
@@ -90,6 +91,7 @@ export class GameEngine {
   private festivalSystem: FestivalSystem;
   private religionSystem: ReligionSystem;
   private diseaseSystem: DiseaseSystem;
+  private wonderSystem: WonderSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -110,6 +112,7 @@ export class GameEngine {
     this.festivalSystem = new FestivalSystem();
     this.religionSystem = new ReligionSystem();
     this.diseaseSystem = new DiseaseSystem();
+    this.wonderSystem = new WonderSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -1077,6 +1080,20 @@ export class GameEngine {
     if (this.state.day % 200 === 0) {
       this.diseaseSystem.cleanupOldDiseases(this.state.day);
     }
+
+    // Update wonders
+    const wonderUpdate = this.wonderSystem.updateWonders(this.state.day);
+    for (const event of wonderUpdate.events) {
+      this.addMessage({
+        id: `wonder-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: event,
+        timestamp: this.state.day,
+        type: 'celebration'
+      });
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -1667,6 +1684,38 @@ export class GameEngine {
     return this.diseaseSystem.getStatistics();
   }
 
+  public getWonderSystem(): WonderSystem {
+    return this.wonderSystem;
+  }
+
+  public getAllWonders() {
+    return this.wonderSystem.getAllWonders();
+  }
+
+  public getCompletedWonders() {
+    return this.wonderSystem.getCompletedWonders();
+  }
+
+  public getWondersByStatus(status: string) {
+    return this.wonderSystem.getWondersByStatus(status as any);
+  }
+
+  public getWonder(wonderId: string) {
+    return this.wonderSystem.getWonder(wonderId);
+  }
+
+  public startWonder(tribe: string, wonderName: string, location: { x: number; y: number }) {
+    return this.wonderSystem.startWonder(tribe, wonderName, location);
+  }
+
+  public contributeToWonder(wonderId: string, tribe: string, resources: any) {
+    return this.wonderSystem.contributeToWonder(wonderId, tribe, resources);
+  }
+
+  public getWonderInfo(wonderId: string) {
+    return this.wonderSystem.getWonderInfo(wonderId);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1687,6 +1736,7 @@ export class GameEngine {
       festivalSystem: this.festivalSystem.serialize(),
       religionSystem: this.religionSystem.serialize(),
       diseaseSystem: this.diseaseSystem.serialize(),
+      wonderSystem: this.wonderSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1768,6 +1818,11 @@ export class GameEngine {
     // Restore disease system
     if (data.diseaseSystem) {
       this.diseaseSystem.deserialize(data.diseaseSystem);
+    }
+
+    // Restore wonder system
+    if (data.wonderSystem) {
+      this.wonderSystem.deserialize(data.wonderSystem);
     }
 
     // Restore victory state

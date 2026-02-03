@@ -1714,6 +1714,170 @@
             background: linear-gradient(to right, #84cc16, #22c55e);
             transition: width 0.3s;
         }
+        .wonder-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 16px;
+        }
+        .wonder-card {
+            background: linear-gradient(135deg, #1a1a2e 0%, #2d1f4e 100%);
+            padding: 16px;
+            border-radius: 8px;
+            border: 2px solid #fbbf24;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        .wonder-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(251, 191, 36, 0.1), transparent);
+            transition: left 0.5s;
+        }
+        .wonder-card:hover::before {
+            left: 100%;
+        }
+        .wonder-card:hover {
+            transform: translateY(-4px) scale(1.02);
+            box-shadow: 0 8px 24px rgba(251, 191, 36, 0.4);
+        }
+        .wonder-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .wonder-icon {
+            font-size: 32px;
+            filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.5));
+        }
+        .wonder-info {
+            flex: 1;
+        }
+        .wonder-name {
+            font-weight: bold;
+            font-size: 16px;
+            background: linear-gradient(to right, #fbbf24, #f59e0b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .wonder-category {
+            font-size: 11px;
+            color: #fbbf24;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .wonder-status {
+            font-size: 9px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            font-weight: bold;
+        }
+        .wonder-status.planning { background: #6b7280; }
+        .wonder-status.under_construction { background: #3b82f6; color: #fff; }
+        .wonder-status.completed { background: #22c55e; color: #000; }
+        .wonder-status.abandoned { background: #ef4444; }
+        .wonder-status.destroyed { background: #1f2937; color: #9ca3af; }
+        .wonder-lore {
+            font-size: 11px;
+            color: #9ca3af;
+            font-style: italic;
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+            border-left: 2px solid #fbbf24;
+        }
+        .wonder-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin: 12px 0;
+        }
+        .wonder-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 10px;
+        }
+        .wonder-stat-label {
+            color: #9ca3af;
+        }
+        .wonder-stat-value {
+            font-weight: bold;
+            color: #fbbf24;
+        }
+        .wonder-bonuses {
+            margin-top: 12px;
+            padding: 10px;
+            background: rgba(251, 191, 36, 0.1);
+            border-radius: 6px;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+        }
+        .wonder-bonuses-title {
+            font-size: 10px;
+            color: #fbbf24;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .wonder-bonus {
+            font-size: 9px;
+            padding: 3px 0;
+            color: #e5e7eb;
+        }
+        .wonder-progress {
+            margin-top: 12px;
+        }
+        .wonder-progress-bar {
+            height: 8px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid #fbbf24;
+        }
+        .wonder-progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, #fbbf24, #f59e0b);
+            transition: width 0.5s;
+            position: relative;
+        }
+        .wonder-progress-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            animation: shimmer 2s infinite;
+        }
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        .wonder-stage {
+            font-size: 10px;
+            color: #9ca3af;
+            margin-top: 6px;
+        }
+        .wonder-contributors {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .wonder-contributor {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            font-size: 10px;
+        }
     </style>
 </head>
 <body>
@@ -2026,6 +2190,13 @@
         <div id="diseaseInfo">
             <h2>🦠 Diseases & Plagues</h2>
             <div class="disease-cards" id="diseaseCards">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
+
+        <div id="wonderInfo">
+            <h2>🏛️ World Wonders</h2>
+            <div class="wonder-cards" id="wonderCards">
                 <!-- Filled by JavaScript -->
             </div>
         </div>
@@ -2353,6 +2524,7 @@
             updateFestivalInfo();
             updateReligionInfo();
             updateDiseaseInfo();
+            updateWonderInfo();
         }
 
         // Tech tree state
@@ -3192,6 +3364,91 @@
             }
 
             diseaseEl.innerHTML = html;
+        }
+
+        function updateWonderInfo() {
+            const wonderEl = document.getElementById('wonderCards');
+            if (!wonderEl) return;
+
+            const wonders = engine.getAllWonders();
+            let html = '';
+
+            // Show wonders under construction first, then completed
+            const underConstruction = wonders.filter(w => w.status === 'under_construction');
+            const completed = wonders.filter(w => w.status === 'completed');
+
+            for (const wonder of underConstruction) {
+                html += '<div class="wonder-card">';
+                html += '<div class="wonder-header">';
+                html += '<span class="wonder-icon">' + wonder.icon + '</span>';
+                html += '<div class="wonder-info">';
+                html += '<div class="wonder-name">' + wonder.name + '</div>';
+                html += '<div class="wonder-category">' + wonder.category + ' Wonder</div>';
+                html += '</div>';
+                html += '<span class="wonder-status under_construction">🚧 UNDER CONSTRUCTION</span>';
+                html += '</div>';
+
+                html += '<div class="wonder-lore">"' + wonder.lore + '"</div>';
+
+                const info = engine.getWonderInfo(wonder.id);
+                if (info) {
+                    html += '<div class="wonder-progress">';
+                    html += '<div class="wonder-stage">Stage: ' + info.currentStage + '/' + info.totalStages + ' - ' + info.stageName + '</div>';
+                    html += '<div class="wonder-progress-bar">';
+                    html += '<div class="wonder-progress-fill" style="width: ' + info.progress + '%"></div>';
+                    html += '</div>';
+                    html += '</div>';
+                }
+
+                html += '<div class="wonder-contributors">';
+                html += '<div style="font-size: 10px; color: #fbbf24; margin-bottom: 6px;">Contributors:</div>';
+                for (const [tribe, count] of wonder.contributors) {
+                    html += '<div class="wonder-contributor">';
+                    html += '<span>' + tribe + '</span>';
+                    html += '<span>' + count + ' workers</span>';
+                    html += '</div>';
+                }
+                html += '</div>';
+
+                html += '</div>';
+            }
+
+            for (const wonder of completed) {
+                html += '<div class="wonder-card">';
+                html += '<div class="wonder-header">';
+                html += '<span class="wonder-icon">' + wonder.icon + '</span>';
+                html += '<div class="wonder-info">';
+                html += '<div class="wonder-name">' + wonder.name + '</div>';
+                html += '<div class="wonder-category">' + wonder.category + ' Wonder</div>';
+                html += '</div>';
+                html += '<span class="wonder-status completed">✓ COMPLETE</span>';
+                html += '</div>';
+
+                html += '<div class="wonder-lore">"' + wonder.lore + '"</div>';
+
+                html += '<div class="wonder-stats">';
+                html += '<div class="wonder-stat"><span class="wonder-stat-label">Builders</span><span class="wonder-stat-value">' + wonder.builders + '</span></div>';
+                html += '<div class="wonder-stat"><span class="wonder-stat-label">Visitors</span><span class="wonder-stat-value">' + wonder.visitors + '</span></div>';
+                html += '<div class="wonder-stat"><span class="wonder-stat-label">Damage</span><span class="wonder-stat-value">' + wonder.damage + '%</span></div>';
+                html += '</div>';
+
+                if (wonder.bonuses && wonder.bonuses.length > 0) {
+                    html += '<div class="wonder-bonuses">';
+                    html += '<div class="wonder-bonuses-title">✨ Benefits</div>';
+                    for (const bonus of wonder.bonuses) {
+                        html += '<div class="wonder-bonus">• ' + bonus.description + '</div>';
+                    }
+                    html += '</div>';
+                }
+
+                html += '</div>';
+            }
+
+            if (wonders.length === 0) {
+                html = '<div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">No wonders yet. Tribes can collaborate to build magnificent monuments that grant powerful bonuses to all civilizations.</div>';
+            }
+
+            wonderEl.innerHTML = html;
         }
 
         // Game speed and pause controls
