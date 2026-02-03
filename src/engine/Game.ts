@@ -10,6 +10,7 @@ import { EventSystem } from '../systems/Events.ts';
 import { QuestSystem } from '../systems/Quests.ts';
 import { DiplomacySystem } from '../systems/Diplomacy.ts';
 import { SeasonSystem } from '../systems/Seasons.ts';
+import { TribeConfigSystem } from '../systems/TribeConfig.ts';
 
 export interface Message {
   id: string;
@@ -74,6 +75,7 @@ export class GameEngine {
   private questSystem: QuestSystem;
   private diplomacySystem: DiplomacySystem;
   private seasonSystem: SeasonSystem;
+  private tribeConfigSystem: TribeConfigSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -86,6 +88,7 @@ export class GameEngine {
     this.questSystem = new QuestSystem();
     this.diplomacySystem = new DiplomacySystem();
     this.seasonSystem = new SeasonSystem();
+    this.tribeConfigSystem = new TribeConfigSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -118,11 +121,21 @@ export class GameEngine {
         const id = `agent-${agentId++}`;
         const skills = this.generateSkills();
         const specialization = this.determineSpecialization(skills);
+        const tribeConfig = this.tribeConfigSystem.getTribeConfig(tribe);
 
         // Position agents around their tribe center with some spread
         const spread = 250; // Tribe territory spread (less tight)
         const worldX = center.x + (Math.random() - 0.5) * spread;
         const worldZ = center.z + (Math.random() - 0.5) * spread;
+
+        // Apply tribe-specific starting bonuses
+        const startingResources = tribeConfig ? tribeConfig.startingBonus : {
+          food: 100,
+          energy: 100,
+          materials: 50,
+          knowledge: 0,
+          socialCapital: 50
+        };
 
         agents.push({
           id: id,
@@ -133,11 +146,11 @@ export class GameEngine {
           worldX: worldX,
           worldZ: worldZ,
           resources: {
-            food: 100,
-            energy: 100,
-            materials: 50,
-            knowledge: 0,
-            socialCapital: 50
+            food: startingResources.food || 100,
+            energy: startingResources.energy || 100,
+            materials: startingResources.materials || 50,
+            knowledge: startingResources.knowledge || 0,
+            socialCapital: startingResources.socialCapital || 50
           },
           skills,
           specialization,
@@ -427,11 +440,14 @@ export class GameEngine {
       type: 'trade'
     });
 
-    // Reward successful trade with diplomacy modifier
-    const tradeModifier = this.diplomacySystem.getTradeModifier(agent.tribe, other.tribe);
-    const tokenReward = Math.round(10 * tradeModifier);
+    // Reward successful trade with diplomacy and tribe modifiers
+    const diplomacyMod = this.diplomacySystem.getTradeModifier(agent.tribe, other.tribe);
+    const agentTribeMod = this.tribeConfigSystem.getTradeModifier(agent.tribe);
+    const otherTribeMod = this.tribeConfigSystem.getTradeModifier(other.tribe);
+    const tokenReward = Math.round(10 * diplomacyMod * agentTribeMod);
+    const tokenRewardOther = Math.round(10 * diplomacyMod * otherTribeMod);
     this.tokenSystem.earnTokens(agent.id, tokenReward, 'trade');
-    this.tokenSystem.earnTokens(other.id, tokenReward, 'trade');
+    this.tokenSystem.earnTokens(other.id, tokenRewardOther, 'trade');
 
     return true;
   }
@@ -460,9 +476,12 @@ export class GameEngine {
       }
     }
 
-    // Combat strength based on resources
-    const attackPower = attacker.resources.energy * 0.5 + attacker.resources.materials * 0.3;
-    const defensePower = defender.resources.energy * 0.5 + defender.resources.materials * 0.3;
+    // Combat strength based on resources and tribe modifiers
+    const attackerCombatMod = this.tribeConfigSystem.getCombatModifier(attacker.tribe);
+    const defenderCombatMod = this.tribeConfigSystem.getCombatModifier(defender.tribe);
+
+    const attackPower = (attacker.resources.energy * 0.5 + attacker.resources.materials * 0.3) * attackerCombatMod;
+    const defensePower = (defender.resources.energy * 0.5 + defender.resources.materials * 0.3) * defenderCombatMod;
 
     const attackerWins = attackPower > defensePower * (0.8 + Math.random() * 0.4);
 
@@ -833,21 +852,27 @@ export class GameEngine {
     let primaryAction = 'greeting';
     if (agent.skills.includes('farming')) {
       const foodModifier = this.seasonSystem.getResourceModifier('food');
-      agent.resources.food += 12 * foodModifier;
+      const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'food');
+      const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'farming');
+      agent.resources.food += 12 * foodModifier * tribeModifier * skillAffinity;
       primaryAction = 'farming';
       this.tokenSystem.earnTokens(agent.id, 2, 'farming');
       this.grantExperience(agent, 2);
     }
     if (agent.skills.includes('mining')) {
       const materialsModifier = this.seasonSystem.getResourceModifier('materials');
-      agent.resources.materials += 8 * materialsModifier;
+      const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'materials');
+      const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'mining');
+      agent.resources.materials += 8 * materialsModifier * tribeModifier * skillAffinity;
       primaryAction = 'mining';
       this.tokenSystem.earnTokens(agent.id, 3, 'mining');
       this.grantExperience(agent, 3);
     }
     if (agent.skills.includes('research')) {
       const knowledgeModifier = this.seasonSystem.getResourceModifier('knowledge');
-      agent.resources.knowledge += 5 * knowledgeModifier;
+      const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'knowledge');
+      const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'research');
+      agent.resources.knowledge += 5 * knowledgeModifier * tribeModifier * skillAffinity;
       primaryAction = 'research';
       this.tokenSystem.earnTokens(agent.id, 5, 'research');
       this.grantExperience(agent, 5);
@@ -948,23 +973,27 @@ export class GameEngine {
     const techTree = this.techTrees.get(tribe);
     if (!techTree) return false;
 
-    // Calculate tribe resources
+    // Calculate tribe resources with tribe-specific modifier
     const tribeAgents = this.state.agents.filter(a => a.tribe === tribe && a.alive);
+    const researchMod = this.tribeConfigSystem.getResearchModifier(tribe);
+
+    // Apply tribe research modifier to reduce effective cost
     const totalResources = {
-      food: tribeAgents.reduce((sum, a) => sum + a.resources.food, 0),
-      knowledge: tribeAgents.reduce((sum, a) => sum + a.resources.knowledge, 0),
-      socialCapital: tribeAgents.reduce((sum, a) => sum + a.resources.socialCapital, 0)
+      food: tribeAgents.reduce((sum, a) => sum + a.resources.food, 0) * researchMod,
+      knowledge: tribeAgents.reduce((sum, a) => sum + a.resources.knowledge, 0) * researchMod,
+      socialCapital: tribeAgents.reduce((sum, a) => sum + a.resources.socialCapital, 0) * researchMod
     };
 
     const success = techTree.research(techId, totalResources);
     if (success) {
-      // Deduct resources from tribe agents
+      // Deduct resources from tribe agents (actual cost, not modified)
       const tech = techTree.getTech(techId);
       if (tech) {
+        // Reverse the modifier for actual cost deduction (tribes pay full price)
         const perAgentCost = {
-          food: tech.cost.food / tribeAgents.length,
-          knowledge: tech.cost.knowledge / tribeAgents.length,
-          socialCapital: tech.cost.socialCapital / tribeAgents.length
+          food: (tech.cost.food / researchMod) / tribeAgents.length,
+          knowledge: (tech.cost.knowledge / researchMod) / tribeAgents.length,
+          socialCapital: (tech.cost.socialCapital / researchMod) / tribeAgents.length
         };
 
         for (const agent of tribeAgents) {
@@ -1169,6 +1198,14 @@ export class GameEngine {
     return this.seasonSystem.getConditionsSummary();
   }
 
+  public getTribeConfigSystem(): TribeConfigSystem {
+    return this.tribeConfigSystem;
+  }
+
+  public getTribeConfig(tribe: string) {
+    return this.tribeConfigSystem.getTribeConfig(tribe);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1181,6 +1218,7 @@ export class GameEngine {
       questSystem: this.questSystem.serialize(),
       diplomacySystem: this.diplomacySystem.serialize(),
       seasonSystem: this.seasonSystem.serialize(),
+      tribeConfigSystem: this.tribeConfigSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1222,6 +1260,11 @@ export class GameEngine {
     // Restore season system
     if (data.seasonSystem) {
       this.seasonSystem.deserialize(data.seasonSystem);
+    }
+
+    // Restore tribe config system
+    if (data.tribeConfigSystem) {
+      this.tribeConfigSystem.deserialize(data.tribeConfigSystem);
     }
 
     // Restore victory state
