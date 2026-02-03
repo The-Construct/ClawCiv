@@ -549,6 +549,33 @@
         #agentOverlay.active {
             display: block;
         }
+        .agent-history {
+            max-height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .history-entry {
+            padding: 8px;
+            background: rgba(26, 26, 46, 0.5);
+            border-radius: 4px;
+            font-size: 11px;
+            border-left: 3px solid #333;
+        }
+        .history-entry.combat { border-left-color: #ff6b6b; }
+        .history-entry.trade { border-left-color: #fbbf24; }
+        .history-entry.diplomacy { border-left-color: #4ecdc4; }
+        .history-entry.celebration { border-left-color: #4ade80; }
+        .history-entry.chat { border-left-color: #888; }
+        .history-day {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .history-content {
+            color: #ddd;
+        }
         @keyframes bubblePop {
             0% { transform: translate(-50%, -100%) scale(0); opacity: 0; }
             100% { transform: translate(-50%, -120%) scale(1); opacity: 1; }
@@ -615,6 +642,11 @@
         <div class="agent-panel-section">
             <h3>🤝 Relations</h3>
             <div id="agentRelations"></div>
+        </div>
+
+        <div class="agent-panel-section">
+            <h3>📜 Action History</h3>
+            <div id="agentHistory" class="agent-history"></div>
         </div>
     </div>
 
@@ -754,6 +786,11 @@
         const canvas = document.getElementById('canvas3d');
         const engine = new GameEngine();
         const renderer = new GameRenderer3D(canvas);
+
+        // Set up agent selection callback
+        renderer.setAgentSelectCallback((agent) => {
+            showAgentPanel(agent);
+        });
 
         let currentView = '3d';
         let renderer2D = null;
@@ -1066,6 +1103,71 @@
                 updateTechTree();
             });
         });
+
+        // Agent panel functions
+        function showAgentPanel(agent) {
+            document.getElementById('agentPanelName').textContent = agent.name;
+            document.getElementById('agentPanelSpecialization').textContent = agent.specialization || 'None';
+            document.getElementById('agentLevel').textContent = agent.level || 1;
+            document.getElementById('agentTribe').textContent = agent.tribe;
+            document.getElementById('agentXP').textContent = `${agent.experience || 0} / ${agent.level * 100}`;
+            document.getElementById('agentTokens').textContent = engine.getAgentBalance(agent.id) || 0;
+            document.getElementById('agentFood').textContent = Math.round(agent.resources.food);
+            document.getElementById('agentEnergy').textContent = Math.round(agent.resources.energy);
+            document.getElementById('agentMaterials').textContent = Math.round(agent.resources.materials);
+            document.getElementById('agentKnowledge').textContent = Math.round(agent.resources.knowledge || 0);
+
+            // Skills
+            const skillsEl = document.getElementById('agentSkills');
+            if (skillsEl) {
+                skillsEl.innerHTML = agent.skills.map(skill =>
+                    `<span class="skill-tag">${skill}</span>`
+                ).join('');
+            }
+
+            // Relations
+            const relationsEl = document.getElementById('agentRelations');
+            if (relationsEl) {
+                let relationsHTML = '<div style="font-size: 12px;">';
+                if (agent.alliances && agent.alliances.size > 0) {
+                    relationsHTML += '<div style="margin-bottom: 8px;"><span style="color: #4ade80;">Allies:</span> ' + agent.alliances.size + '</div>';
+                }
+                if (agent.enemies && agent.enemies.size > 0) {
+                    relationsHTML += '<div><span style="color: #ff6b6b;">Enemies:</span> ' + agent.enemies.size + '</div>';
+                }
+                if ((!agent.alliances || agent.alliances.size === 0) && (!agent.enemies || agent.enemies.size === 0)) {
+                    relationsHTML += '<div style="color: #888;">No relations yet</div>';
+                }
+                relationsHTML += '</div>';
+                relationsEl.innerHTML = relationsHTML;
+            }
+
+            // Action history
+            const historyEl = document.getElementById('agentHistory');
+            if (historyEl) {
+                const messages = engine.getMessages(100);
+                const agentMessages = messages.filter(m => m.agentId === agent.id);
+
+                if (agentMessages.length === 0) {
+                    historyEl.innerHTML = '<div style="color: #888; text-align: center; padding: 20px;">No actions yet</div>';
+                } else {
+                    historyEl.innerHTML = agentMessages.map(msg => `
+                        <div class="history-entry ${msg.type}">
+                            <div class="history-day">Day ${msg.timestamp}</div>
+                            <div class="history-content">${msg.content}</div>
+                        </div>
+                    `).reverse().join('');
+                }
+            }
+
+            document.getElementById('agentOverlay').classList.add('active');
+            document.getElementById('agentPanel').style.display = 'block';
+        }
+
+        window.closeAgentPanel = function() {
+            document.getElementById('agentOverlay').classList.remove('active');
+            document.getElementById('agentPanel').style.display = 'none';
+        };
 
         function updateTechTree() {
             const techTree = engine.getTechTree(selectedTribeForTech);
