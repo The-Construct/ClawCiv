@@ -17,6 +17,7 @@ import { SpySystem } from '../systems/Spy.ts';
 import { ArtifactSystem } from '../systems/Artifacts.ts';
 import { FestivalSystem } from '../systems/Festivals.ts';
 import { ReligionSystem } from '../systems/Religion.ts';
+import { DiseaseSystem } from '../systems/Disease.ts';
 
 export interface Message {
   id: string;
@@ -88,6 +89,7 @@ export class GameEngine {
   private artifactSystem: ArtifactSystem;
   private festivalSystem: FestivalSystem;
   private religionSystem: ReligionSystem;
+  private diseaseSystem: DiseaseSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -107,6 +109,7 @@ export class GameEngine {
     this.artifactSystem = new ArtifactSystem();
     this.festivalSystem = new FestivalSystem();
     this.religionSystem = new ReligionSystem();
+    this.diseaseSystem = new DiseaseSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -1022,6 +1025,58 @@ export class GameEngine {
         });
       }
     }
+
+    // Update diseases
+    const diseaseUpdate = this.diseaseSystem.updateDiseases(this.state.agents, this.state.day);
+    for (const event of diseaseUpdate.events) {
+      this.addMessage({
+        id: `disease-${Date.now()}`,
+        agentId: 'system',
+        agentName: 'System',
+        tribe: 'Global',
+        content: event,
+        timestamp: this.state.day,
+        type: 'combat'
+      });
+    }
+
+    // Spread diseases between nearby agents
+    for (const disease of this.diseaseSystem.getActiveDiseases()) {
+      const spreadResult = this.diseaseSystem.spreadDisease(disease.id, this.state.agents, this.state.day);
+      if (spreadResult.newInfections.length > 0) {
+        this.addMessage({
+          id: `disease-spread-${Date.now()}`,
+          agentId: 'system',
+          agentName: 'System',
+          tribe: 'Global',
+          content: `🦠 ${disease.name} has infected ${spreadResult.newInfections.length} agent(s)!`,
+          timestamp: this.state.day,
+          type: 'combat'
+        });
+      }
+    }
+
+    // Random disease outbreak chance (0.5% per day)
+    if (Math.random() < 0.005) {
+      const randomTribe = this.TRIBES[Math.floor(Math.random() * this.TRIBES.length)];
+      const outbreak = this.diseaseSystem.triggerOutbreak(randomTribe);
+      if (outbreak) {
+        this.addMessage({
+          id: `outbreak-${Date.now()}`,
+          agentId: 'system',
+          agentName: 'System',
+          tribe: randomTribe,
+          content: `⚠️ OUTBREAK: ${outbreak.icon} ${outbreak.name} has emerged in ${randomTribe}!`,
+          timestamp: this.state.day,
+          type: 'combat'
+        });
+      }
+    }
+
+    // Clean up old diseases periodically
+    if (this.state.day % 200 === 0) {
+      this.diseaseSystem.cleanupOldDiseases(this.state.day);
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -1588,6 +1643,30 @@ export class GameEngine {
     return this.religionSystem.performMiracle(religionId, figureId);
   }
 
+  public getDiseaseSystem(): DiseaseSystem {
+    return this.diseaseSystem;
+  }
+
+  public getAllDiseases() {
+    return this.diseaseSystem.getAllDiseases();
+  }
+
+  public getActiveDiseases() {
+    return this.diseaseSystem.getActiveDiseases();
+  }
+
+  public getDisease(diseaseId: string) {
+    return this.diseaseSystem.getDisease(diseaseId);
+  }
+
+  public triggerOutbreak(tribe: string, severity?: string) {
+    return this.diseaseSystem.triggerOutbreak(tribe, severity as any);
+  }
+
+  public getDiseaseStatistics() {
+    return this.diseaseSystem.getStatistics();
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1607,6 +1686,7 @@ export class GameEngine {
       artifactSystem: this.artifactSystem.serialize(),
       festivalSystem: this.festivalSystem.serialize(),
       religionSystem: this.religionSystem.serialize(),
+      diseaseSystem: this.diseaseSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1683,6 +1763,11 @@ export class GameEngine {
     // Restore religion system
     if (data.religionSystem) {
       this.religionSystem.deserialize(data.religionSystem);
+    }
+
+    // Restore disease system
+    if (data.diseaseSystem) {
+      this.diseaseSystem.deserialize(data.diseaseSystem);
     }
 
     // Restore victory state

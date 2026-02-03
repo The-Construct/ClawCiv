@@ -1606,6 +1606,114 @@
             padding: 2px 0;
             color: #ef4444;
         }
+        .disease-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 12px;
+        }
+        .disease-card {
+            background: #1a1a2e;
+            padding: 12px;
+            border-radius: 6px;
+            border: 2px solid #84cc16;
+            transition: all 0.2s;
+        }
+        .disease-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(132, 204, 22, 0.3);
+        }
+        .disease-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .disease-icon {
+            font-size: 22px;
+        }
+        .disease-info {
+            flex: 1;
+        }
+        .disease-name {
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .disease-type {
+            font-size: 10px;
+            color: #888;
+        }
+        .disease-status {
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .disease-status.active {
+            background: #ef4444;
+        }
+        .disease-status.quarantined {
+            background: #f59e0b;
+        }
+        .disease-status.contained {
+            background: #22c55e;
+            color: #000;
+        }
+        .disease-status.cured {
+            background: #3b82f6;
+        }
+        .disease-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px;
+            font-size: 10px;
+            margin-top: 8px;
+        }
+        .disease-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+        }
+        .disease-stat-label {
+            color: #666;
+        }
+        .disease-stat-value {
+            font-weight: bold;
+        }
+        .disease-stat-value.infected {
+            color: #ef4444;
+        }
+        .disease-stat-value.deaths {
+            color: #dc2626;
+        }
+        .disease-stat-value.recovered {
+            color: #22c55e;
+        }
+        .disease-symptoms {
+            margin-top: 8px;
+            padding: 6px;
+            background: #2d2d44;
+            border-radius: 4px;
+        }
+        .disease-symptom {
+            font-size: 9px;
+            padding: 2px 0;
+            color: #facc15;
+        }
+        .disease-progress {
+            margin-top: 8px;
+        }
+        .progress-bar {
+            height: 4px;
+            background: #1a1a2e;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(to right, #84cc16, #22c55e);
+            transition: width 0.3s;
+        }
     </style>
 </head>
 <body>
@@ -1911,6 +2019,13 @@
         <div id="religionInfo">
             <h2>📿 Religions & Beliefs</h2>
             <div class="religion-cards" id="religionCards">
+                <!-- Filled by JavaScript -->
+            </div>
+        </div>
+
+        <div id="diseaseInfo">
+            <h2>🦠 Diseases & Plagues</h2>
+            <div class="disease-cards" id="diseaseCards">
                 <!-- Filled by JavaScript -->
             </div>
         </div>
@@ -2237,6 +2352,7 @@
             updateArtifactInfo();
             updateFestivalInfo();
             updateReligionInfo();
+            updateDiseaseInfo();
         }
 
         // Tech tree state
@@ -3020,6 +3136,62 @@
             }
 
             religionEl.innerHTML = html;
+        }
+
+        function updateDiseaseInfo() {
+            const diseaseEl = document.getElementById('diseaseCards');
+            if (!diseaseEl) return;
+
+            const diseases = engine.getActiveDiseases();
+            let html = '';
+
+            for (const disease of diseases) {
+                html += '<div class="disease-card">';
+                html += '<div class="disease-header">';
+                html += '<span class="disease-icon">' + disease.icon + '</span>';
+                html += '<div class="disease-info">';
+                html += '<div class="disease-name">' + disease.name + '</div>';
+                html += '<div class="disease-type">' + disease.severity.toUpperCase() + ' - Origin: ' + disease.origin + '</div>';
+                html += '</div>';
+                html += '<span class="disease-status ' + disease.status + '">' + disease.status.toUpperCase() + '</span>';
+                html += '</div>';
+
+                html += '<div class="disease-stats">';
+                html += '<div class="disease-stat"><span class="disease-stat-label">Infected</span><span class="disease-stat-value infected">' + disease.infectedAgents.size + '</span></div>';
+                html += '<div class="disease-stat"><span class="disease-stat-label">Deaths</span><span class="disease-stat-value deaths">' + disease.totalDeaths + '</span></div>';
+                html += '<div class="disease-stat"><span class="disease-stat-label">Recovered</span><span class="disease-stat-value recovered">' + disease.recoveredAgents.size + '</span></div>';
+                html += '<div class="disease-stat"><span class="disease-stat-label">Mortality</span><span class="disease-stat-value">' + disease.mortalityRate + '%</span></div>';
+                html += '</div>';
+
+                if (disease.symptoms && disease.symptoms.length > 0) {
+                    html += '<div class="disease-symptoms">';
+                    html += '<div style="font-size: 9px; color: #888; margin-bottom: 4px;">Symptoms:</div>';
+                    for (const symptom of disease.symptoms.slice(0, 3)) {
+                        html += '<div class="disease-symptom">• ' + symptom.name + '</div>';
+                    }
+                    html += '</div>';
+                }
+
+                if (disease.cureProgress > 0) {
+                    html += '<div class="disease-progress">';
+                    html += '<div style="font-size: 9px; color: #888;">Cure Progress</div>';
+                    html += '<div class="progress-bar">';
+                    html += '<div class="progress-fill" style="width: ' + disease.cureProgress + '%"></div>';
+                    html += '</div>';
+                    html += '</div>';
+                }
+
+                html += '</div>';
+            }
+
+            if (diseases.length === 0) {
+                const stats = engine.getDiseaseStatistics();
+                html = '<div style="color: #666; font-size: 12px; padding: 20px; text-align: center;">';
+                html += 'No active diseases. Total historical cases: ' + stats.totalCases + ', Deaths: ' + stats.totalDeaths;
+                html += '</div>';
+            }
+
+            diseaseEl.innerHTML = html;
         }
 
         // Game speed and pause controls
