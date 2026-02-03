@@ -12,6 +12,7 @@ import { DiplomacySystem } from '../systems/Diplomacy.ts';
 import { SeasonSystem } from '../systems/Seasons.ts';
 import { TribeConfigSystem } from '../systems/TribeConfig.ts';
 import { OrganizationSystem } from '../systems/Organizations.ts';
+import { GovernanceSystem } from '../systems/Governance.ts';
 
 export interface Message {
   id: string;
@@ -78,6 +79,7 @@ export class GameEngine {
   private seasonSystem: SeasonSystem;
   private tribeConfigSystem: TribeConfigSystem;
   private organizationSystem: OrganizationSystem;
+  private governanceSystem: GovernanceSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -92,6 +94,7 @@ export class GameEngine {
     this.seasonSystem = new SeasonSystem();
     this.tribeConfigSystem = new TribeConfigSystem();
     this.organizationSystem = new OrganizationSystem();
+    this.governanceSystem = new GovernanceSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -482,9 +485,11 @@ export class GameEngine {
     // Combat strength based on resources and tribe modifiers
     const attackerCombatMod = this.tribeConfigSystem.getCombatModifier(attacker.tribe);
     const defenderCombatMod = this.tribeConfigSystem.getCombatModifier(defender.tribe);
+    const attackerGovEffects = this.governanceSystem.getEffects(attacker.tribe);
+    const defenderGovEffects = this.governanceSystem.getEffects(defender.tribe);
 
-    const attackPower = (attacker.resources.energy * 0.5 + attacker.resources.materials * 0.3) * attackerCombatMod;
-    const defensePower = (defender.resources.energy * 0.5 + defender.resources.materials * 0.3) * defenderCombatMod;
+    const attackPower = (attacker.resources.energy * 0.5 + attacker.resources.materials * 0.3) * attackerCombatMod * attackerGovEffects.militaryPower;
+    const defensePower = (defender.resources.energy * 0.5 + defender.resources.materials * 0.3) * defenderCombatMod * defenderGovEffects.militaryPower;
 
     const attackerWins = attackPower > defensePower * (0.8 + Math.random() * 0.4);
 
@@ -848,6 +853,79 @@ export class GameEngine {
         });
       }
     }
+
+    // Update governance and collect taxes (every 10 days)
+    if (this.state.day % 10 === 0 && this.state.day > 0) {
+      for (const tribe of this.TRIBES) {
+        // Calculate prosperity and security for approval updates
+        const tribeAgents = this.state.agents.filter(a => a.tribe === tribe && a.alive);
+        if (tribeAgents.length === 0) continue;
+
+        const avgFood = tribeAgents.reduce((sum, a) => sum + a.resources.food, 0) / tribeAgents.length;
+        const avgEnergy = tribeAgents.reduce((sum, a) => sum + a.resources.energy, 0) / tribeAgents.length;
+        const prosperity = Math.min(1, (avgFood + avgEnergy) / 200);
+
+        const gov = this.governanceSystem.getGovernment(tribe);
+        const security = gov.stability / 100;
+
+        // Update approval rating
+        this.governanceSystem.updateApproval(tribe, prosperity, security);
+
+        // Collect taxes
+        const collected = this.governanceSystem.collectTaxes(tribe, tribeAgents);
+
+        // Check for government transitions
+        if (gov.approvalRating < 30 && Math.random() < 0.05) {
+          const oldGovName = gov.name;
+          const evolutionOptions = this.governanceSystem.getEvolutionOptions(tribe);
+          if (evolutionOptions.length > 0) {
+            const option = evolutionOptions[Math.floor(Math.random() * evolutionOptions.length)];
+            if (this.governanceSystem.transitionGovernment(tribe, option.type)) {
+              const newGov = this.governanceSystem.getGovernment(tribe);
+              this.addMessage({
+                id: `gov-transition-${Date.now()}-${tribe}`,
+                agentId: 'system',
+                agentName: 'System',
+                tribe,
+                content: `🏛️ ${tribe} government transitioned from ${oldGovName} to ${newGov.icon} ${newGov.name}!`,
+                timestamp: this.state.day,
+                type: 'celebration'
+              });
+            }
+          }
+        }
+
+        // Check for elections in democracies and republics
+        if ((gov.type === 'democracy' || gov.type === 'republic') && gov.electionCycle) {
+          const daysSinceElection = this.state.day - gov.lastElectionDay;
+          if (daysSinceElection >= gov.electionCycle) {
+            const electionResult = this.governanceSystem.holdElections(tribe);
+            if (electionResult && electionResult.governmentChanged) {
+              const newGov = this.governanceSystem.getGovernment(tribe);
+              this.addMessage({
+                id: `election-${Date.now()}-${tribe}`,
+                agentId: 'system',
+                agentName: 'System',
+                tribe,
+                content: `🗳️ ${tribe} elections resulted in government change to ${newGov.icon} ${newGov.name}!`,
+                timestamp: this.state.day,
+                type: 'celebration'
+              });
+            } else if (electionResult) {
+              this.addMessage({
+                id: `election-${Date.now()}-${tribe}`,
+                agentId: 'system',
+                agentName: 'System',
+                tribe,
+                content: `🗳️ ${tribe} elections held. Incumbent ${gov.leaderTitle} retains power.`,
+                timestamp: this.state.day,
+                type: 'celebration'
+              });
+            }
+          }
+        }
+      }
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -873,7 +951,8 @@ export class GameEngine {
       const foodModifier = this.seasonSystem.getResourceModifier('food');
       const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'food');
       const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'farming');
-      agent.resources.food += 12 * foodModifier * tribeModifier * skillAffinity;
+      const govEffects = this.governanceSystem.getEffects(agent.tribe);
+      agent.resources.food += 12 * foodModifier * tribeModifier * skillAffinity * govEffects.productivity;
       primaryAction = 'farming';
       this.tokenSystem.earnTokens(agent.id, 2, 'farming');
       this.grantExperience(agent, 2);
@@ -883,7 +962,8 @@ export class GameEngine {
       const materialsModifier = this.seasonSystem.getResourceModifier('materials');
       const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'materials');
       const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'mining');
-      agent.resources.materials += 8 * materialsModifier * tribeModifier * skillAffinity;
+      const govEffects = this.governanceSystem.getEffects(agent.tribe);
+      agent.resources.materials += 8 * materialsModifier * tribeModifier * skillAffinity * govEffects.productivity;
       primaryAction = 'mining';
       this.tokenSystem.earnTokens(agent.id, 3, 'mining');
       this.grantExperience(agent, 3);
@@ -893,7 +973,8 @@ export class GameEngine {
       const knowledgeModifier = this.seasonSystem.getResourceModifier('knowledge');
       const tribeModifier = this.tribeConfigSystem.getResourceModifier(agent.tribe, 'knowledge');
       const skillAffinity = this.tribeConfigSystem.getSkillModifier(agent.tribe, 'research');
-      agent.resources.knowledge += 5 * knowledgeModifier * tribeModifier * skillAffinity;
+      const govEffects = this.governanceSystem.getEffects(agent.tribe);
+      agent.resources.knowledge += 5 * knowledgeModifier * tribeModifier * skillAffinity * govEffects.researchSpeed;
       primaryAction = 'research';
       this.tokenSystem.earnTokens(agent.id, 5, 'research');
       this.grantExperience(agent, 5);
@@ -1240,6 +1321,18 @@ export class GameEngine {
     return this.organizationSystem.createOrganization(name, type as any, tribe, leaderId, description, foundingMembers);
   }
 
+  public getGovernanceSystem(): GovernanceSystem {
+    return this.governanceSystem;
+  }
+
+  public getGovernment(tribe: string) {
+    return this.governanceSystem.getGovernment(tribe);
+  }
+
+  public getAllGovernments() {
+    return this.governanceSystem.getAllGovernments();
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1254,6 +1347,7 @@ export class GameEngine {
       seasonSystem: this.seasonSystem.serialize(),
       tribeConfigSystem: this.tribeConfigSystem.serialize(),
       organizationSystem: this.organizationSystem.serialize(),
+      governanceSystem: this.governanceSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1305,6 +1399,11 @@ export class GameEngine {
     // Restore organization system
     if (data.organizationSystem) {
       this.organizationSystem.deserialize(data.organizationSystem);
+    }
+
+    // Restore governance system
+    if (data.governanceSystem) {
+      this.governanceSystem.deserialize(data.governanceSystem);
     }
 
     // Restore victory state
