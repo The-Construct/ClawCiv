@@ -21,6 +21,7 @@ import { DiseaseSystem } from '../systems/Disease.ts';
 import { WonderSystem } from '../systems/Wonders.ts';
 import { TradeRouteSystem } from '../systems/TradeRoutes.ts';
 import { MercenarySystem } from '../systems/Mercenaries.ts';
+import { PopulationSystem } from '../systems/Population.ts';
 
 export interface Message {
   id: string;
@@ -96,6 +97,7 @@ export class GameEngine {
   private wonderSystem: WonderSystem;
   private tradeRouteSystem: TradeRouteSystem;
   private mercenarySystem: MercenarySystem;
+  private populationSystem: PopulationSystem;
   private victoryAchieved: boolean = false;
 
   constructor() {
@@ -119,6 +121,7 @@ export class GameEngine {
     this.wonderSystem = new WonderSystem();
     this.tradeRouteSystem = new TradeRouteSystem();
     this.mercenarySystem = new MercenarySystem();
+    this.populationSystem = new PopulationSystem();
     this.techTrees = new Map();
     // Create tech tree for each tribe
     for (const tribe of this.TRIBES) {
@@ -193,6 +196,9 @@ export class GameEngine {
 
         // Create token account for this agent
         this.tokenSystem.createAgentAccount(agentId, tribe);
+
+        // Register agent with population system
+        this.populationSystem.registerAgent(id, tribe, 0);
       }
     }
 
@@ -1124,6 +1130,57 @@ export class GameEngine {
     if (this.state.day % 200 === 0) {
       this.tradeRouteSystem.cleanupOldRoutes(this.state.day);
     }
+
+    // Update population system
+    const ageEvents = this.populationSystem.updateAges(this.state.day, this.state.agents);
+    for (const event of ageEvents) {
+      this.addMessage({
+        id: `pop-${event.id}`,
+        agentId: event.agentId,
+        agentName: event.agentName,
+        tribe: event.tribe,
+        content: `${event.icon} ${event.description}`,
+        timestamp: this.state.day,
+        type: event.type === 'birth' ? 'celebration' : 'chat'
+      });
+    }
+
+    // Check for births periodically
+    if (this.state.day % 5 === 0) {
+      const tribeResources = new Map();
+      for (const tribe of this.TRIBES) {
+        const tribeAgents = this.state.agents.filter(a => a.tribe === tribe && a.alive);
+        const resources = {
+          food: tribeAgents.reduce((sum, a) => sum + a.resources.food, 0),
+          energy: tribeAgents.reduce((sum, a) => sum + a.resources.energy, 0),
+          materials: tribeAgents.reduce((sum, a) => sum + a.resources.materials, 0)
+        };
+        tribeResources.set(tribe, resources);
+      }
+
+      const birthEvents = this.populationSystem.checkBirths(this.state.agents, this.state.day, tribeResources);
+      for (const event of birthEvents) {
+        this.addMessage({
+          id: `pop-${event.id}`,
+          agentId: event.agentId,
+          agentName: event.agentName,
+          tribe: event.tribe,
+          content: `${event.icon} ${event.description}`,
+          timestamp: this.state.day,
+          type: 'celebration'
+        });
+      }
+    }
+
+    // Record population trends periodically
+    if (this.state.day % 10 === 0) {
+      this.populationSystem.recordTrend(this.state.day, this.state.agents);
+    }
+
+    // Clean up old population data periodically
+    if (this.state.day % 100 === 0) {
+      this.populationSystem.cleanup(this.state.day);
+    }
   }
 
   private agentAction(agent: Agent): void {
@@ -1814,6 +1871,37 @@ export class GameEngine {
     return this.mercenarySystem.getStatistics();
   }
 
+  public getPopulationSystem(): PopulationSystem {
+    return this.populationSystem;
+  }
+
+  public getPopulationStatistics(tribe: string) {
+    return this.populationSystem.getPopulationStatistics(tribe, this.state.agents);
+  }
+
+  public getAllPopulationStatistics() {
+    return this.populationSystem.getAllStatistics(this.state.agents);
+  }
+
+  public getAgentDemographics(agentId: string) {
+    return this.populationSystem.getAgentDemographics(agentId);
+  }
+
+  public getAllDemographics() {
+    return this.populationSystem.getAllDemographics();
+  }
+
+  public getPopulationEvents(tribe?: string) {
+    if (tribe) {
+      return this.populationSystem.getEventsByTribe(tribe);
+    }
+    return this.populationSystem.getRecentEvents();
+  }
+
+  public getPopulationTrends(tribe: string, days?: number) {
+    return this.populationSystem.getTrends(tribe, days);
+  }
+
   // Save/Load System
   public serialize(): any {
     return {
@@ -1837,6 +1925,7 @@ export class GameEngine {
       wonderSystem: this.wonderSystem.serialize(),
       tradeRouteSystem: this.tradeRouteSystem.serialize(),
       mercenarySystem: this.mercenarySystem.serialize(),
+      populationSystem: this.populationSystem.serialize(),
       victoryAchieved: this.victoryAchieved
     };
   }
@@ -1933,6 +2022,11 @@ export class GameEngine {
     // Restore mercenary system
     if (data.mercenarySystem) {
       this.mercenarySystem.deserialize(data.mercenarySystem);
+    }
+
+    // Restore population system
+    if (data.populationSystem) {
+      this.populationSystem.deserialize(data.populationSystem);
     }
 
     // Restore victory state
