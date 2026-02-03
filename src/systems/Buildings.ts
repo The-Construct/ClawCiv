@@ -210,4 +210,14 @@ export class BuildingSystem {
 
     return benefits;
   }
+
+  public serialize(): any {
+    return {
+      buildings: Array.from(this.buildings.entries())
+    };
+  }
+
+  public deserialize(data: any): void {
+    this.buildings = new Map(data.buildings);
+  }
 }

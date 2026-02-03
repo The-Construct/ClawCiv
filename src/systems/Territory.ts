@@ -62,4 +62,14 @@ export class TerritorySystem {
       }
     }
   }
+
+  public serialize(): any {
+    return {
+      territories: Array.from(this.territories.entries())
+    };
+  }
+
+  public deserialize(data: any): void {
+    this.territories = new Map(data.territories);
+  }
 }

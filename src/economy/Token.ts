@@ -235,4 +235,16 @@ export class TokenSystem {
       treasuries
     };
   }
+
+  public serialize(): any {
+    return {
+      accounts: Array.from(this.accounts.entries()),
+      treasuries: Array.from(this.treasuries.entries())
+    };
+  }
+
+  public deserialize(data: any): void {
+    this.accounts = new Map(data.accounts);
+    this.treasuries = new Map(data.treasuries);
+  }
 }

@@ -886,4 +886,35 @@ export class GameEngine {
       total: this.territorySystem.getAllTerritories().length
     };
   }
+
+  // Save/Load System
+  public serialize(): any {
+    return {
+      state: this.state,
+      tokenSystem: this.tokenSystem.serialize(),
+      territorySystem: this.territorySystem.serialize(),
+      techTrees: Array.from(this.techrees.entries()).map(([tribe, tree]) => [tribe, tree.serialize()]),
+      buildingSystem: this.buildingSystem.serialize()
+    };
+  }
+
+  public deserialize(data: any): void {
+    // Restore state
+    this.state = data.state;
+    this.tokenSystem.deserialize(data.tokenSystem);
+    this.territorySystem.deserialize(data.territorySystem);
+
+    // Restore tech trees
+    this.techTrees.clear();
+    for (const [tribe, treeData] of data.techTrees || []) {
+      const techTree = new TechTree();
+      techTree.deserialize(treeData);
+      this.techTrees.set(tribe, techTree);
+    }
+
+    // Restore building system
+    if (data.buildingSystem) {
+      this.buildingSystem.deserialize(data.buildingSystem);
+    }
+  }
 }

@@ -257,4 +257,17 @@ export class TechTree {
     }
     return false;
   }
+
+  public serialize(): any {
+    return {
+      technologies: Array.from(this.technologies.entries())
+    };
+  }
+
+  public deserialize(data: any): void {
+    this.technologies = new Map(data.technologies);
+    for (const [id, tech] of this.technologies) {
+      tech.researched = false;
+    }
+  }
 }

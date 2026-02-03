@@ -37,6 +37,39 @@
             font-size: 12px;
             color: #888;
         }
+        .controls {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            align-items: center;
+        }
+        .control-btn {
+            width: 45px;
+            height: 45px;
+            background: #1a1a2e;
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            color: #00ff88;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .control-btn:hover {
+            background: #00ff88;
+            color: #1a1a2e;
+            transform: scale(1.05);
+        }
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+        .control-btn.paused {
+            background: #f59e0b;
+            border-color: #f59e0b;
+            color: #1a1a2e;
+        }
         #gameCanvas {
             width: 600px;
             height: 600px;
@@ -780,6 +813,12 @@
                 <div class="stat-value" id="gamma">20</div>
                 <div class="stat-label">Gamma</div>
             </div>
+            <div class="controls">
+                <button class="control-btn" id="pauseBtn" onclick="togglePause()">⏸️</button>
+                <button class="control-btn" id="speedBtn" onclick="cycleSpeed()">1x</button>
+                <button class="control-btn" onclick="saveGame()">💾</button>
+                <button class="control-btn" onclick="loadGame()">📂</button>
+            </div>
         </div>
 
         <div id="gameCanvas">
@@ -1453,8 +1492,71 @@
             }
         }
 
+        // Game speed and pause controls
+        let gameSpeed = 3000;
+        let isPaused = false;
+        let gameInterval;
+
+        window.togglePause = function() {
+            isPaused = !isPaused;
+            const pauseBtn = document.getElementById('pauseBtn');
+            if (isPaused) {
+                pauseBtn.classList.add('paused');
+                pauseBtn.textContent = '▶️';
+            } else {
+                pauseBtn.classList.remove('paused');
+                pauseBtn.textContent = '⏸️';
+            }
+        };
+
+        window.cycleSpeed = function() {
+            const speeds = [3000, 1500, 500]; // 1x, 2x, 6x
+            const speedLabels = ['1x', '2x', '6x'];
+            const currentIndex = speeds.indexOf(gameSpeed);
+
+            const nextIndex = (currentIndex + 1) % speeds.length;
+            gameSpeed = speeds[nextIndex];
+
+            const speedBtn = document.getElementById('speedBtn');
+            speedBtn.textContent = speedLabels[nextIndex];
+
+            // Restart game loop with new speed
+            clearInterval(gameInterval);
+            gameInterval = setInterval(gameLoop, gameSpeed);
+        };
+
+        window.saveGame = function() {
+            const state = engine.serialize();
+            const saveData = {
+                state,
+                timestamp: Date.now(),
+                version: '1.0'
+            };
+
+            localStorage.setItem('clawciv_save', JSON.stringify(saveData));
+
+            showNotification('success', 'Game Saved', 'Your progress has been saved!', 'Alpha');
+        };
+
+        window.loadGame = function() {
+            const saveData = localStorage.getItem('clawciv_save');
+            if (!saveData) {
+                showNotification('alert', 'No Save Found', 'No saved game found. Start a new game!', 'Alpha');
+                return;
+            }
+
+            try {
+                const data = JSON.parse(saveData);
+                engine.deserialize(data.state);
+
+                showNotification('success', 'Game Loaded', `Save from ${new Date(data.timestamp).toLocaleString()} loaded!`, 'Alpha');
+            } catch (e) {
+                showNotification('alert', 'Load Failed', 'Failed to load save file.', 'Alpha');
+            }
+        };
+
         // Game loop - one tick every 3 seconds
-        setInterval(gameLoop, 3000);
+        gameInterval = setInterval(gameLoop, gameSpeed);
 
         // Render loop (smooth 60fps)
         function animate(time) {
